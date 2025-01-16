@@ -12,6 +12,8 @@ const MapComponent = () => {
   const lng = 106.862; // Longitude Jakarta
   const lat = -6.2222; // Latitude Jakarta
   const zoom = 15; // Zoom level
+  const pitch = 45;
+  const bearing = -17.6;
   const API_KEY = "LwdMyEmnYMoMgeVadnRo"; // MapTiler API Key
 
   useEffect(() => {
@@ -22,6 +24,8 @@ const MapComponent = () => {
       style: `https://api.maptiler.com/maps/streets-v2/style.json?key=${API_KEY}`,
       center: [lng, lat],
       zoom: zoom,
+      pitch: pitch,
+      bearing: bearing,
     });
 
     // Add navigation controls
@@ -40,7 +44,17 @@ const MapComponent = () => {
         type: "fill-extrusion",
         source: "admin",
         paint: {
-          "fill-extrusion-color": "blue",
+          "fill-extrusion-color": [
+            "interpolate",
+            ["linear"],
+            ["get", "height2"],
+            0,
+            "lightgray",
+            15,
+            "royalblue",
+            40,
+            "lightblue",
+          ],
           "fill-extrusion-height": ["get", "height2"], // Height attribute for extrusion
           "fill-extrusion-base": 0, // Base of extrusion
         },
@@ -59,7 +73,7 @@ const MapComponent = () => {
       });
       */
     });
-  }, [API_KEY, lng, lat, zoom]);
+  }, [API_KEY, lng, lat, zoom, pitch, bearing]);
 
   return (
     <div
