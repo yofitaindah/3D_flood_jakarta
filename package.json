@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "3d_flood_jakarta": "file:",
     "maplibre-gl": "^5.0.1",
     "next": "15.1.4",
     "react": "^19.0.0",
