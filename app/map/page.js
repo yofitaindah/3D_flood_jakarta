@@ -17,3 +17,5 @@ const page = () => {
 };
 
 export default page;
+
+// kalo styling layout disini untuk map
