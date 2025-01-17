@@ -99,6 +99,33 @@ const MapComponent = () => {
         type: "raster",
         source: "osm-source",
       });
+      console.log(map);
+      map.current.addSource("admin1", {
+        type: "geojson",
+        data: adminData,
+      });
+
+      // Add 3D extrusion layer
+      map.current.addLayer({
+        id: "admin-extrusion-layer1",
+        type: "fill-extrusion",
+        source: "admin1",
+        paint: {
+          "fill-extrusion-color": [
+            "interpolate",
+            ["linear"],
+            ["get", "height2"],
+            0,
+            "saddlebrown",
+            20,
+            "peru",
+            40,
+            "burlywood",
+          ],
+          "fill-extrusion-height": ["get", "height2"], // Height attribute for extrusion
+          "fill-extrusion-base": 0, // Base of extrusion
+        },
+      });
     };
 
     basemapSwitcher.appendChild(maptilerButton);
