@@ -1,0 +1,37 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model bangunan {
+  id         Int                      @id @default(autoincrement())
+  location   Unsupported("geometry")?
+  CATATAN    String?
+  WADMKD     String?
+  WADMKC     String?
+  WADMKK     String?
+  KODBANG    String?
+  JNSBANGN   String?
+  UKPLKLRGA  Int?                     @db.SmallInt
+  JMLKKRMH   Int?                     @db.SmallInt
+  STSRTLH    String?
+  KATUSIA    String?
+  GAJI       BigInt?
+  height_med Float?
+  height_dsm Float?
+  height1    Float?
+  height2    Float?
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model spatial_ref_sys {
+  srid      Int     @id
+  auth_name String? @db.VarChar(256)
+  auth_srid Int?
+  srtext    String? @db.VarChar(2048)
+  proj4text String? @db.VarChar(2048)
+}
