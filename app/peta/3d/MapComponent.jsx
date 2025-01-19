@@ -70,7 +70,7 @@ const MapComponent = () => {
                     source: "bangunan",
                     paint: {
                         "fill-color": "#888888",
-                        "fill-opacity": 0.5,
+                        "fill-opacity": 0.4,
                     },
                 });
             };
