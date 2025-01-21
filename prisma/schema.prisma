@@ -8,23 +8,23 @@ datasource db {
 }
 
 model bangunan {
-  id         Int                      @id @default(autoincrement())
-  location   Unsupported("geometry")?
+  id         Int                     @id @default(autoincrement())
+  location   Unsupported("geometry")
   CATATAN    String?
   WADMKD     String?
   WADMKC     String?
   WADMKK     String?
   KODBANG    String?
   JNSBANGN   String?
-  UKPLKLRGA  Int?                     @db.SmallInt
-  JMLKKRMH   Int?                     @db.SmallInt
+  UKPLKLRGA  Int?                    @db.SmallInt
+  JMLKKRMH   Int?                    @db.SmallInt
   STSRTLH    String?
   KATUSIA    String?
   GAJI       BigInt?
   height_med Float?
   height_dsm Float?
   height1    Float?
-  height2    Float?
+  height2    Int?
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
@@ -34,4 +34,17 @@ model spatial_ref_sys {
   auth_srid Int?
   srtext    String? @db.VarChar(2048)
   proj4text String? @db.VarChar(2048)
+}
+
+model genangan {
+  id        Int                     @id @default(autoincrement())
+  location  Unsupported("geometry")
+  kel_kiri  String?
+  kel_kanan String?
+  range_m   String?
+  min_m     Float?
+  max_m     Float?
+  min_tma   Float?
+  max_tma   Float?
+  tma       Float?
 }

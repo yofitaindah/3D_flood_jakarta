@@ -3,19 +3,19 @@ import prisma from "@/lib/db";
 import { NextResponse } from "next/server";
 
 export async function GET(request) {
-    try {
-        const { searchParams } = request.nextUrl;
+  try {
+    const { searchParams } = request.nextUrl;
 
-        const xmin = parseFloat(searchParams.get("xmin"))
-        const xmax = parseFloat(searchParams.get("xmax"))
-        const ymin = parseFloat(searchParams.get("ymin"))
-        const ymax = parseFloat(searchParams.get("ymax"))
+    const xmin = parseFloat(searchParams.get("xmin"));
+    const xmax = parseFloat(searchParams.get("xmax"));
+    const ymin = parseFloat(searchParams.get("ymin"));
+    const ymax = parseFloat(searchParams.get("ymax"));
 
-        if (request.method !== "GET") {
-            throw new ResponseError(405, "Method not allowed");
-        }
+    if (request.method !== "GET") {
+      throw new ResponseError(405, "Method not allowed");
+    }
 
-        const data = await prisma.$queryRaw`
+    const data = await prisma.$queryRaw`
             SELECT
                 id,
                 COALESCE("WADMKK", '') AS kota,
@@ -29,6 +29,7 @@ export async function GET(request) {
                 COALESCE("STSRTLH", '') AS satus_rtlh,
                 COALESCE("KATUSIA", '') AS kategori_usia,
                 COALESCE("CATATAN", '') AS catatan,
+                COALESCE("height2", 0) AS height2,
                 ST_AsGeoJSON(location) AS geometry
             FROM bangunan
             WHERE ST_Intersects(
@@ -37,50 +38,54 @@ export async function GET(request) {
             )
         `;
 
-        if (data.length === 0) {
-            throw new ResponseError(404, "Not found");
-        }
-
-        const serializedData = data.map(item => ({
-            ...item,
-            gaji: item.gaji !== null ? parseInt(item.gaji.toString()) : null,
-        }));
-
-        const geoJSONData = {
-            type: 'FeatureCollection',
-            features: serializedData.map(item => ({
-                type: 'Feature',
-                geometry: JSON.parse(item.geometry),
-                properties: {
-                    id: item.id,
-                    kota: item.kota,
-                    kecamatan: item.kecamatan,
-                    kelurahan: item.kelurahan,
-                    kode_bangunan: item.kode_bangunan,
-                    jenis_bangunan: item.jenis_bangunan,
-                    umur_kepala_keluarga: item.umur_kepala_keluarga,
-                    jumlah_kepala_keluarga: item.jumlah_kepala_keluarga,
-                    gaji: item.gaji,
-                    satus_rtlh: item.satus_rtlh,
-                    kategori_usia: item.kategori_usia,
-                    catatan: item.catatan
-                }
-            }))
-        };
-
-        return NextResponse.json(geoJSONData, { status: 200 });
-    } catch (error) {
-        if (error instanceof ResponseError) {
-            return new NextResponse(JSON.stringify({ errors: error.message }), {
-                status: error.status,
-                headers: { "Content-Type": "application/json" },
-            });
-        } else {
-            console.error(error);
-            return new NextResponse(JSON.stringify({ errors: "Internal Server Error" }), {
-                status: 500,
-                headers: { "Content-Type": "application/json" },
-            });
-        }
+    if (data.length === 0) {
+      throw new ResponseError(404, "Not found");
     }
+
+    const serializedData = data.map((item) => ({
+      ...item,
+      gaji: item.gaji !== null ? parseInt(item.gaji.toString()) : null,
+    }));
+
+    const geoJSONData = {
+      type: "FeatureCollection",
+      features: serializedData.map((item) => ({
+        type: "Feature",
+        geometry: JSON.parse(item.geometry),
+        properties: {
+          id: item.id,
+          kota: item.kota,
+          kecamatan: item.kecamatan,
+          kelurahan: item.kelurahan,
+          kode_bangunan: item.kode_bangunan,
+          jenis_bangunan: item.jenis_bangunan,
+          umur_kepala_keluarga: item.umur_kepala_keluarga,
+          jumlah_kepala_keluarga: item.jumlah_kepala_keluarga,
+          gaji: item.gaji,
+          satus_rtlh: item.satus_rtlh,
+          kategori_usia: item.kategori_usia,
+          catatan: item.catatan,
+          height2: item.height2,
+        },
+      })),
+    };
+
+    return NextResponse.json(geoJSONData, { status: 200 });
+  } catch (error) {
+    if (error instanceof ResponseError) {
+      return new NextResponse(JSON.stringify({ errors: error.message }), {
+        status: error.status,
+        headers: { "Content-Type": "application/json" },
+      });
+    } else {
+      console.error(error);
+      return new NextResponse(
+        JSON.stringify({ errors: "Internal Server Error" }),
+        {
+          status: 500,
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+    }
+  }
 }
