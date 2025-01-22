@@ -31,9 +31,7 @@ export async function GET(request) {
       FROM genangan
       WHERE ST_Intersects(
         location,
-        ST_MakeEnvelope(${xmin}, ${ymin}, ${xmax}, ${ymax}, 4326)
-      )
-    `;
+        ST_MakeEnvelope(${xmin}, ${ymin}, ${xmax}, ${ymax}, 4326))`;
 
     if (data.length === 0) {
       throw new ResponseError(404, "Not found");

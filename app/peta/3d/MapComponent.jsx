@@ -57,9 +57,9 @@ const MapComponent = () => {
           `/api/bangunan?xmax=${xmax}&xmin=${xmin}&ymax=${ymax}&ymin=${ymin}`
         );
 
-        const genanganGeoJson = await getGeoJSON(
-          `/api/genangan?xmax=${xmax}&xmin=${xmin}&ymax=${ymax}&ymin=${ymin}`
-        );
+        // const genanganGeoJson = await getGeoJSON(
+        //   `/api/genangan?xmax=${xmax}&xmin=${xmin}&ymax=${ymax}&ymin=${ymin}`
+        // );
 
         if (map.getSource("bangunan")) {
           map.removeLayer("bangunan-layer");
@@ -92,34 +92,34 @@ const MapComponent = () => {
           },
         });
 
-        // Add flood inundation layer
-        if (map.getSource("genangan")) {
-          map.removeLayer("genangan-layer");
-          map.removeSource("genangan");
-        }
-        map.addSource("genangan", {
-          type: "geojson",
-          data: genanganGeoJson,
-        });
-        map.addLayer({
-          id: "genangan-layer",
-          type: "fill",
-          source: "genangan",
-          paint: {
-            "fill-color": [
-              "interpolate",
-              ["linear"],
-              ["get", "max_m"],
-              0,
-              "lightblue",
-              1.4,
-              "blue",
-              2.8,
-              "darkblue",
-            ],
-            "fill-opacity": 0.5,
-          },
-        });
+        // // Add flood inundation layer
+        // if (map.getSource("genangan")) {
+        //   map.removeLayer("genangan-layer");
+        //   map.removeSource("genangan");
+        // }
+        // map.addSource("genangan", {
+        //   type: "geojson",
+        //   data: genanganGeoJson,
+        // });
+        // map.addLayer({
+        //   id: "genangan-layer",
+        //   type: "fill",
+        //   source: "genangan",
+        //   paint: {
+        //     "fill-color": [
+        //       "interpolate",
+        //       ["linear"],
+        //       ["get", "max_m"],
+        //       0,
+        //       "lightblue",
+        //       1.4,
+        //       "blue",
+        //       2.8,
+        //       "darkblue",
+        //     ],
+        //     "fill-opacity": 0.5,
+        //   },
+        // });
       };
 
       updateLayers(); // Panggil updateLayers di sini
