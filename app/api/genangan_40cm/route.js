@@ -19,16 +19,10 @@ export async function GET(request) {
     const data = await prisma.$queryRaw`
       SELECT
         id,
-        COALESCE("kel_kiri", '') AS kel_kiri,
-        COALESCE("kel_kanan", '') AS kel_kanan,
         COALESCE("range_m", '') AS range_m,
-        COALESCE("min_m", 0) AS min_m,
-        COALESCE("max_m", 0) AS max_m,
-        COALESCE("min_tma", 0) AS min_tma,
-        COALESCE("max_tma", 0) AS max_tma,
-        COALESCE("tma", 0) AS tma,
+        COALESCE("depth", 0) AS depth,
         ST_AsGeoJSON(location) AS geometry
-      FROM genangan
+      FROM genangan_40cm
       WHERE ST_Intersects(
         location,
         ST_MakeEnvelope(${xmin}, ${ymin}, ${xmax}, ${ymax}, 4326))`;
@@ -45,14 +39,8 @@ export async function GET(request) {
         geometry: JSON.parse(item.geometry),
         properties: {
           id: item.id,
-          kel_kiri: item.kel_kiri,
-          kel_kanan: item.kel_kanan,
           range_m: item.range_m,
-          min_m: item.min_m,
-          max_m: item.max_m,
-          min_tma: item.min_tma,
-          max_tma: item.max_tma,
-          tma: item.tma,
+          depth: item.depth,
         },
       })),
     };

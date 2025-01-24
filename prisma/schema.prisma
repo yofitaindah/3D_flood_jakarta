@@ -48,3 +48,10 @@ model genangan {
   max_tma   Float?
   tma       Float?
 }
+
+model genangan_40cm {
+  id       Int                     @id @default(autoincrement())
+  location Unsupported("geometry")
+  range_m  String?
+  depth    Float?
+}

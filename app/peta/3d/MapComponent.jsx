@@ -57,9 +57,37 @@ const MapComponent = () => {
           `/api/bangunan?xmax=${xmax}&xmin=${xmin}&ymax=${ymax}&ymin=${ymin}`
         );
 
-        // const genanganGeoJson = await getGeoJSON(
-        //   `/api/genangan?xmax=${xmax}&xmin=${xmin}&ymax=${ymax}&ymin=${ymin}`
-        // );
+        const genangan40GeoJson = await getGeoJSON(
+          `/api/genangan_40cm?xmax=${xmax}&xmin=${xmin}&ymax=${ymax}&ymin=${ymin}`
+        );
+
+        // Add flood inundation layer
+        if (map.getSource("genangan_40cm")) {
+          map.removeLayer("genangan_40cm_layer");
+          map.removeSource("genangan_40cm");
+        }
+        map.addSource("genangan_40cm", {
+          type: "geojson",
+          data: genangan40GeoJson,
+        });
+        map.addLayer({
+          id: "genangan_40cm_layer",
+          type: "fill",
+          source: "genangan_40cm",
+          paint: {
+            "fill-color": [
+              "interpolate",
+              ["linear"],
+              ["get", "depth"],
+              0,
+              "lightblue",
+              1.4,
+              "blue",
+              2.8,
+              "darkblue",
+            ],
+          },
+        });
 
         if (map.getSource("bangunan")) {
           map.removeLayer("bangunan-layer");
@@ -82,44 +110,23 @@ const MapComponent = () => {
               ["get", "height2"],
               0,
               "saddlebrown",
-              20,
+              15,
               "peru",
-              40,
+              35,
               "burlywood",
             ],
-            "fill-extrusion-height": ["get", "height2"], // Height attribute for extrusion
+            "fill-extrusion-height": [
+              "interpolate",
+              ["linear"],
+              ["zoom"],
+              15,
+              0, // Add a comma here to separate elements
+              16,
+              ["get", "height2"],
+            ], // Height attribute for extrusion
             "fill-extrusion-base": 0, // Base of extrusion
           },
         });
-
-        // // Add flood inundation layer
-        // if (map.getSource("genangan")) {
-        //   map.removeLayer("genangan-layer");
-        //   map.removeSource("genangan");
-        // }
-        // map.addSource("genangan", {
-        //   type: "geojson",
-        //   data: genanganGeoJson,
-        // });
-        // map.addLayer({
-        //   id: "genangan-layer",
-        //   type: "fill",
-        //   source: "genangan",
-        //   paint: {
-        //     "fill-color": [
-        //       "interpolate",
-        //       ["linear"],
-        //       ["get", "max_m"],
-        //       0,
-        //       "lightblue",
-        //       1.4,
-        //       "blue",
-        //       2.8,
-        //       "darkblue",
-        //     ],
-        //     "fill-opacity": 0.5,
-        //   },
-        // });
       };
 
       updateLayers(); // Panggil updateLayers di sini
