@@ -1,4 +1,4 @@
-"use client"; // Menjadikan komponen ini sebagai Client Component
+"use client";
 
 import { Typography, Checkbox, FormControlLabel, FormGroup } from "@mui/material";
 import { Box, IconButton, Menu, MenuItem, Popover } from "@mui/material";
@@ -6,11 +6,11 @@ import React, { useState } from "react";
 import Image from "next/image";
 import MenuIcon from "@mui/icons-material/Menu";
 
-const Header = () => {
+const Header = ({ onLayerChange }) => {
   const [anchorEl, setAnchorEl] = useState(null);
   const [layerAnchorEl, setLayerAnchorEl] = useState(null);
-  const [showBuildings, setShowBuildings] = useState(false);
-  const [showFloodArea, setShowFloodArea] = useState(false);
+  const [showBuildings, setShowBuildings] = useState(true); // Default checked
+  const [showFloodArea, setShowFloodArea] = useState(true); // Default checked
 
   // Handle burger menu open/close
   const handleMenuOpen = (event) => {
@@ -31,10 +31,12 @@ const Header = () => {
   // Handle checkbox changes
   const handleBuildingsChange = (event) => {
     setShowBuildings(event.target.checked);
+    onLayerChange(event.target.checked, "buildings");
   };
 
   const handleFloodAreaChange = (event) => {
     setShowFloodArea(event.target.checked);
+    onLayerChange(event.target.checked, "floodArea");
   };
 
   return (
