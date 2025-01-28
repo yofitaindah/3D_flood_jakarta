@@ -5,11 +5,12 @@ import { Map } from "maplibre-gl";
 import React, { useEffect, useRef, useState } from "react";
 import "maplibre-gl/dist/maplibre-gl.css";
 
-const MapComponent = ({ showBuildings, showFloodArea }) => {
+const MapComponent = ({ showBuildings, showFloodArea, onLayerChange }) => {
   const mapRef = useRef(null);
   const [map, setMap] = useState();
 
   useEffect(() => {
+    // Inisialisasi peta
     const map = new Map({
       container: mapRef.current,
       center: [106.862, -6.2222],
@@ -60,7 +61,7 @@ const MapComponent = ({ showBuildings, showFloodArea }) => {
           `/api/genangan_40cm?xmax=${xmax}&xmin=${xmin}&ymax=${ymax}&ymin=${ymin}`
         );
 
-        // Clear existing layers if any
+        // Hapus layer jika sudah ada
         if (map.getSource("genangan_40cm")) {
           map.removeLayer("genangan_40cm_layer");
           map.removeSource("genangan_40cm");
@@ -70,7 +71,7 @@ const MapComponent = ({ showBuildings, showFloodArea }) => {
           map.removeSource("bangunan");
         }
 
-        // Add layers based on checkbox status
+        // Tambahkan layer jika diaktifkan
         if (showFloodArea) {
           map.addSource("genangan_40cm", {
             type: "geojson",
@@ -130,12 +131,20 @@ const MapComponent = ({ showBuildings, showFloodArea }) => {
             },
           });
         }
+
+        // Callback untuk notifikasi layer yang diupdate
+        if (onLayerChange) {
+          onLayerChange({
+            floodLayer: showFloodArea ? "genangan_40cm_layer" : null,
+            buildingLayer: showBuildings ? "bangunan-layer" : null,
+          });
+        }
       };
 
-      updateLayers(); // Update layers on component mount and every change
-      map.on("moveend", updateLayers); // Update layers on map move
+      updateLayers(); // Update layer saat mount atau perubahan status
+      map.on("moveend", updateLayers); // Update layer saat peta selesai digerakkan
     }
-  }, [map, showBuildings, showFloodArea]);
+  }, [map, showBuildings, showFloodArea, onLayerChange]);
 
   return <Box ref={mapRef} sx={{ width: "100%", height: "100%" }} />;
 };
