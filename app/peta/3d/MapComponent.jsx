@@ -55,6 +55,7 @@ const MapComponent = () => {
 
         const bangunanGeoJson = await getGeoJSON(
           `/api/bangunan?xmax=${xmax}&xmin=${xmin}&ymax=${ymax}&ymin=${ymin}`
+
         );
 
         const genangan40GeoJson = await getGeoJSON(
@@ -143,7 +144,7 @@ export default MapComponent;
 const getGeoJSON = async (url) => {
   const response = await fetch(url);
   if (!response.ok) {
-    console.error("Failed to fetch GeoJSON data");
+    console.error("Data Belum Dimuat");
     return { type: "FeatureCollection", features: [] };
   }
   return response.json();
