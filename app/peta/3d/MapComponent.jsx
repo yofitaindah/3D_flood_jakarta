@@ -5,7 +5,12 @@ import { Map } from "maplibre-gl";
 import React, { useEffect, useRef, useState } from "react";
 import "maplibre-gl/dist/maplibre-gl.css";
 
-const MapComponent = ({ showBuildings, showFloodArea, onLayerChange }) => {
+const MapComponent = ({
+  showBuildings,
+  showFloodArea1,
+  showFloodArea2,
+  onLayerChange,
+}) => {
   const mapRef = useRef(null);
   const [map, setMap] = useState(null);
 
@@ -55,6 +60,9 @@ const MapComponent = ({ showBuildings, showFloodArea, onLayerChange }) => {
       const genangan40GeoJson = await getGeoJSON(
         `/api/genangan_40cm?xmax=${xmax}&xmin=${xmin}&ymax=${ymax}&ymin=${ymin}`
       );
+      const genangan80GeoJson = await getGeoJSON(
+        `/api/genangan_80cm?xmax=${xmax}&xmin=${xmin}&ymax=${ymax}&ymin=${ymin}`
+      );
 
       const removeLayer = (layerId, sourceId) => {
         if (map.getLayer(layerId)) map.removeLayer(layerId);
@@ -62,9 +70,10 @@ const MapComponent = ({ showBuildings, showFloodArea, onLayerChange }) => {
       };
 
       removeLayer("genangan_40cm_layer", "genangan_40cm");
+      removeLayer("genangan_80cm_layer", "genangan_80cm");
       removeLayer("bangunan-layer", "bangunan");
 
-      if (showFloodArea) {
+      if (showFloodArea1) {
         map.addSource("genangan_40cm", {
           type: "geojson",
           data: genangan40GeoJson,
@@ -73,6 +82,31 @@ const MapComponent = ({ showBuildings, showFloodArea, onLayerChange }) => {
           id: "genangan_40cm_layer",
           type: "fill",
           source: "genangan_40cm",
+          paint: {
+            "fill-color": [
+              "interpolate",
+              ["linear"],
+              ["get", "depth"],
+              0,
+              "lightblue",
+              1.4,
+              "blue",
+              2.8,
+              "darkblue",
+            ],
+          },
+        });
+      }
+
+      if (showFloodArea2) {
+        map.addSource("genangan_80cm", {
+          type: "geojson",
+          data: genangan80GeoJson,
+        });
+        map.addLayer({
+          id: "genangan_80cm_layer",
+          type: "fill",
+          source: "genangan_80cm",
           paint: {
             "fill-color": [
               "interpolate",
@@ -123,7 +157,8 @@ const MapComponent = ({ showBuildings, showFloodArea, onLayerChange }) => {
 
       if (onLayerChange) {
         onLayerChange({
-          floodLayer: showFloodArea ? "genangan_40cm_layer" : null,
+          floodLayer1: showFloodArea1 ? "genangan_40cm_layer" : null,
+          floodLayer2: showFloodArea2 ? "genangan_80cm_layer" : null,
           buildingLayer: showBuildings ? "bangunan-layer" : null,
         });
       }
@@ -133,7 +168,7 @@ const MapComponent = ({ showBuildings, showFloodArea, onLayerChange }) => {
     map.on("moveend", updateLayers);
 
     return () => map.off("moveend", updateLayers);
-  }, [map, showBuildings, showFloodArea, onLayerChange]);
+  }, [map, showBuildings, showFloodArea1, showFloodArea2, onLayerChange]);
 
   return <Box ref={mapRef} sx={{ width: "100%", height: "100%" }} />;
 };

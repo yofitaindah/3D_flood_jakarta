@@ -8,7 +8,8 @@ import MapComponent from "./MapComponent";
 const Page = () => {
   const [selectedLayers, setSelectedLayers] = useState({
     buildings: true,
-    floodArea: true,
+    floodArea1: true, //for 0.4m flood
+    floodArea2: true, //for 0.8m flood
   });
 
   const handleLayerChange = useCallback((layerName, checked) => {
@@ -35,11 +36,13 @@ const Page = () => {
       <Header
         onLayerChange={handleLayerChange}
         showBuildings={selectedLayers.buildings}
-        showFloodArea={selectedLayers.floodArea}
+        showFloodArea1={selectedLayers.floodArea1}
+        showFloodArea2={selectedLayers.floodArea2}
       />
       <MapComponent
         showBuildings={selectedLayers.buildings}
-        showFloodArea={selectedLayers.floodArea}
+        showFloodArea1={selectedLayers.floodArea1}
+        showFloodArea2={selectedLayers.floodArea2}
         onLayerChange={handleLayerChange}
       />
     </Box>

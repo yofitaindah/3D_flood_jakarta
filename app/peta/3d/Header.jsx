@@ -11,7 +11,12 @@ import React, { useState } from "react";
 import Image from "next/image";
 import MenuIcon from "@mui/icons-material/Menu";
 
-const Header = ({ onLayerChange, showBuildings, showFloodArea }) => {
+const Header = ({
+  onLayerChange,
+  showBuildings,
+  showFloodArea1,
+  showFloodArea2,
+}) => {
   const [anchorEl, setAnchorEl] = useState(null);
   const [layerAnchorEl, setLayerAnchorEl] = useState(null);
 
@@ -36,8 +41,12 @@ const Header = ({ onLayerChange, showBuildings, showFloodArea }) => {
     onLayerChange("buildings", event.target.checked);
   };
 
-  const handleFloodAreaChange = (event) => {
-    onLayerChange("floodArea", event.target.checked);
+  const handleFloodArea1Change = (event) => {
+    onLayerChange("floodArea1", event.target.checked);
+  };
+
+  const handleFloodArea2Change = (event) => {
+    onLayerChange("floodArea2", event.target.checked);
   };
 
   return (
@@ -136,7 +145,7 @@ const Header = ({ onLayerChange, showBuildings, showFloodArea }) => {
                   name="buildings"
                 />
               }
-              label="Tampilkan Bangunan"
+              label="Bangunan"
               sx={{
                 color: "brown", // Warna coklat untuk teks
               }}
@@ -144,12 +153,25 @@ const Header = ({ onLayerChange, showBuildings, showFloodArea }) => {
             <FormControlLabel
               control={
                 <Checkbox
-                  checked={showFloodArea}
-                  onChange={handleFloodAreaChange}
-                  name="floodArea"
+                  checked={showFloodArea1}
+                  onChange={handleFloodArea1Change}
+                  name="floodArea1"
                 />
               }
-              label="Tampilkan Area Banjir"
+              label="Banjir 0.4m"
+              sx={{
+                color: "blue", // Warna biru untuk teks
+              }}
+            />
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={showFloodArea2}
+                  onChange={handleFloodArea2Change}
+                  name="floodArea2"
+                />
+              }
+              label="Banjir 0.8m"
               sx={{
                 color: "blue", // Warna biru untuk teks
               }}
