@@ -11,45 +11,36 @@ export async function GET(request) {
     const ymin = parseFloat(searchParams.get("ymin"));
     const ymax = parseFloat(searchParams.get("ymax"));
 
-    if (request.method !== "GET") {
-      throw new ResponseError(405, "Method not allowed");
+    if (isNaN(xmin) || isNaN(xmax) || isNaN(ymin) || isNaN(ymax)) {
+      return new NextResponse(
+        JSON.stringify({ errors: "Invalid bounding box parameters" }),
+        { status: 400, headers: { "Content-Type": "application/json" } }
+      );
     }
 
     const data = await prisma.$queryRaw`
-            SELECT
-                id,
-                COALESCE("WADMKK", '') AS kota,
-                COALESCE("WADMKC", '') AS kecamatan,
-                COALESCE("WADMKD", '') AS kelurahan,
-                COALESCE("KODBANG", '') AS kode_bangunan,
-                COALESCE("JNSBANGN", '') AS jenis_bangunan,
-                COALESCE("UKPLKLRGA", 0) AS umur_kepala_keluarga,
-                COALESCE("JMLKKRMH", 0) AS jumlah_kepala_keluarga,
-                COALESCE("GAJI", 0) AS gaji,
-                COALESCE("STSRTLH", '') AS satus_rtlh,
-                COALESCE("KATUSIA", '') AS kategori_usia,
-                COALESCE("CATATAN", '') AS catatan,
-                COALESCE("height2", 0) AS height2,
-                ST_AsGeoJSON(location) AS geometry
-            FROM bangunan
-            WHERE ST_Intersects(
-                location,
-                ST_MakeEnvelope(${xmin}, ${ymin}, ${xmax}, ${ymax}, 4326)
-            )
-        `;
+      SELECT 
+        id, "WADMKK" AS kota, "WADMKC" AS kecamatan, "WADMKD" AS kelurahan, 
+        "KODBANG" AS kode_bangunan, "JNSBANGN" AS jenis_bangunan, 
+        "UKPLKLRGA" AS umur_kepala_keluarga, "JMLKKRMH" AS jumlah_kepala_keluarga, 
+        "GAJI" AS gaji, "STSRTLH" AS satus_rtlh, "KATUSIA" AS kategori_usia, 
+        "CATATAN" AS catatan, "height2",
+        ST_AsGeoJSON(location) AS geometry
+      FROM bangunan
+      WHERE ST_Intersects(
+        location,
+        ST_MakeEnvelope(${xmin}, ${ymin}, ${xmax}, ${ymax}, 4326)
+      )
+      LIMIT 1000
+    `;
 
     if (data.length === 0) {
-      throw new ResponseError(404, "Not found");
+      throw new ResponseError(404, "Data not found");
     }
-
-    const serializedData = data.map((item) => ({
-      ...item,
-      gaji: item.gaji !== null ? parseInt(item.gaji.toString()) : null,
-    }));
 
     const geoJSONData = {
       type: "FeatureCollection",
-      features: serializedData.map((item) => ({
+      features: data.map((item) => ({
         type: "Feature",
         geometry: JSON.parse(item.geometry),
         properties: {
@@ -61,7 +52,7 @@ export async function GET(request) {
           jenis_bangunan: item.jenis_bangunan,
           umur_kepala_keluarga: item.umur_kepala_keluarga,
           jumlah_kepala_keluarga: item.jumlah_kepala_keluarga,
-          gaji: item.gaji,
+          gaji: item.gaji ? Number(item.gaji) : null,
           satus_rtlh: item.satus_rtlh,
           kategori_usia: item.kategori_usia,
           catatan: item.catatan,
@@ -72,20 +63,14 @@ export async function GET(request) {
 
     return NextResponse.json(geoJSONData, { status: 200 });
   } catch (error) {
-    if (error instanceof ResponseError) {
-      return new NextResponse(JSON.stringify({ errors: error.message }), {
-        status: error.status,
-        headers: { "Content-Type": "application/json" },
-      });
-    } else {
-      console.error(error);
-      return new NextResponse(
-        JSON.stringify({ errors: "Internal Server Error" }),
-        {
-          status: 500,
-          headers: { "Content-Type": "application/json" },
-        }
-      );
-    }
+    console.error("API Error:", error);
+    const status = error instanceof ResponseError ? error.status : 500;
+    const message =
+      error instanceof ResponseError ? error.message : "Internal Server Error";
+
+    return new NextResponse(JSON.stringify({ errors: message }), {
+      status,
+      headers: { "Content-Type": "application/json" },
+    });
   }
 }

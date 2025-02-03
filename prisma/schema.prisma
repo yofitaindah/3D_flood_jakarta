@@ -55,3 +55,45 @@ model genangan_40cm {
   range_m  String?
   depth    Float?
 }
+
+model genangan_120cm {
+  id       Int                     @id @default(autoincrement())
+  location Unsupported("geometry")
+  range_m  String?
+  depth    Float?
+}
+
+model genangan_160cm {
+  id       Int                     @id @default(autoincrement())
+  location Unsupported("geometry")
+  range_m  String?
+  depth    Float?
+}
+
+model genangan_200cm {
+  id       Int                     @id @default(autoincrement())
+  location Unsupported("geometry")
+  range_m  String?
+  depth    Float?
+}
+
+model genangan_240cm {
+  id       Int                     @id @default(autoincrement())
+  location Unsupported("geometry")
+  range_m  String?
+  depth    Float?
+}
+
+model genangan_280cm {
+  id       Int                     @id @default(autoincrement())
+  location Unsupported("geometry")
+  range_m  String?
+  depth    Float?
+}
+
+model genangan_80cm {
+  id       Int                     @id @default(autoincrement())
+  location Unsupported("geometry")
+  range_m  String?
+  depth    Float?
+}

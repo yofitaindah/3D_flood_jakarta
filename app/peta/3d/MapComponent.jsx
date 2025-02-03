@@ -7,11 +7,10 @@ import "maplibre-gl/dist/maplibre-gl.css";
 
 const MapComponent = ({ showBuildings, showFloodArea, onLayerChange }) => {
   const mapRef = useRef(null);
-  const [map, setMap] = useState();
+  const [map, setMap] = useState(null);
 
   useEffect(() => {
-    // Inisialisasi peta
-    const map = new Map({
+    const mapInstance = new Map({
       container: mapRef.current,
       center: [106.862, -6.2222],
       zoom: 15,
@@ -37,113 +36,103 @@ const MapComponent = ({ showBuildings, showFloodArea, onLayerChange }) => {
         ],
       },
     });
-    setMap(map);
+    setMap(mapInstance);
 
-    return () => {
-      map.remove();
-    };
+    return () => mapInstance.remove();
   }, []);
 
   useEffect(() => {
-    if (map) {
-      const updateLayers = async () => {
-        const bbox = map.getBounds();
-        const ymax = bbox._ne.lat;
-        const ymin = bbox._sw.lat;
-        const xmax = bbox._ne.lng;
-        const xmin = bbox._sw.lng;
+    if (!map) return;
 
-        const bangunanGeoJson = await getGeoJSON(
-          `/api/bangunan?xmax=${xmax}&xmin=${xmin}&ymax=${ymax}&ymin=${ymin}`
-        );
+    const updateLayers = async () => {
+      const bbox = map.getBounds();
+      const [xmin, ymin] = [bbox._sw.lng, bbox._sw.lat];
+      const [xmax, ymax] = [bbox._ne.lng, bbox._ne.lat];
 
-        const genangan40GeoJson = await getGeoJSON(
-          `/api/genangan_40cm?xmax=${xmax}&xmin=${xmin}&ymax=${ymax}&ymin=${ymin}`
-        );
+      const bangunanGeoJson = await getGeoJSON(
+        `/api/bangunan?xmax=${xmax}&xmin=${xmin}&ymax=${ymax}&ymin=${ymin}`
+      );
+      const genangan40GeoJson = await getGeoJSON(
+        `/api/genangan_40cm?xmax=${xmax}&xmin=${xmin}&ymax=${ymax}&ymin=${ymin}`
+      );
 
-        // Hapus layer jika sudah ada
-        if (map.getSource("genangan_40cm")) {
-          map.removeLayer("genangan_40cm_layer");
-          map.removeSource("genangan_40cm");
-        }
-        if (map.getSource("bangunan")) {
-          map.removeLayer("bangunan-layer");
-          map.removeSource("bangunan");
-        }
-
-        // Tambahkan layer jika diaktifkan
-        if (showFloodArea) {
-          map.addSource("genangan_40cm", {
-            type: "geojson",
-            data: genangan40GeoJson,
-          });
-          map.addLayer({
-            id: "genangan_40cm_layer",
-            type: "fill",
-            source: "genangan_40cm",
-            paint: {
-              "fill-color": [
-                "interpolate",
-                ["linear"],
-                ["get", "depth"],
-                0,
-                "lightblue",
-                1.4,
-                "blue",
-                2.8,
-                "darkblue",
-              ],
-            },
-          });
-        }
-
-        if (showBuildings) {
-          map.addSource("bangunan", {
-            type: "geojson",
-            data: bangunanGeoJson,
-          });
-          map.addLayer({
-            id: "bangunan-layer",
-            type: "fill-extrusion",
-            source: "bangunan",
-            paint: {
-              "fill-extrusion-color": [
-                "interpolate",
-                ["linear"],
-                ["get", "height2"],
-                0,
-                "saddlebrown",
-                15,
-                "peru",
-                35,
-                "burlywood",
-              ],
-              "fill-extrusion-height": [
-                "interpolate",
-                ["linear"],
-                ["zoom"],
-                15,
-                0,
-                16,
-                ["get", "height2"],
-              ],
-              "fill-extrusion-base": 0,
-            },
-          });
-        }
-
-        // Callback untuk notifikasi layer yang diupdate
-        if (onLayerChange) {
-          onLayerChange({
-            floodLayer: showFloodArea ? "genangan_40cm_layer" : null,
-            buildingLayer: showBuildings ? "bangunan-layer" : null,
-          });
-        }
+      const removeLayer = (layerId, sourceId) => {
+        if (map.getLayer(layerId)) map.removeLayer(layerId);
+        if (map.getSource(sourceId)) map.removeSource(sourceId);
       };
 
-      updateLayers(); // Update layer saat mount atau perubahan status
-      map.on("moveend", updateLayers); // Update layer saat peta selesai digerakkan
-    }
+      removeLayer("genangan_40cm_layer", "genangan_40cm");
+      removeLayer("bangunan-layer", "bangunan");
+
+      if (showFloodArea) {
+        map.addSource("genangan_40cm", {
+          type: "geojson",
+          data: genangan40GeoJson,
+        });
+        map.addLayer({
+          id: "genangan_40cm_layer",
+          type: "fill",
+          source: "genangan_40cm",
+          paint: {
+            "fill-color": [
+              "interpolate",
+              ["linear"],
+              ["get", "depth"],
+              0,
+              "lightblue",
+              1.4,
+              "blue",
+              2.8,
+              "darkblue",
+            ],
+          },
+        });
+      }
+
+      if (showBuildings) {
+        map.addSource("bangunan", { type: "geojson", data: bangunanGeoJson });
+        map.addLayer({
+          id: "bangunan-layer",
+          type: "fill-extrusion",
+          source: "bangunan",
+          paint: {
+            "fill-extrusion-color": [
+              "interpolate",
+              ["linear"],
+              ["get", "height2"],
+              0,
+              "saddlebrown",
+              15,
+              "peru",
+              35,
+              "burlywood",
+            ],
+            "fill-extrusion-height": [
+              "interpolate",
+              ["linear"],
+              ["zoom"],
+              15,
+              0,
+              16,
+              ["get", "height2"],
+            ],
+            "fill-extrusion-base": 0,
+          },
+        });
+      }
+
+      if (onLayerChange) {
+        onLayerChange({
+          floodLayer: showFloodArea ? "genangan_40cm_layer" : null,
+          buildingLayer: showBuildings ? "bangunan-layer" : null,
+        });
+      }
+    };
+
+    updateLayers();
+    map.on("moveend", updateLayers);
+
+    return () => map.off("moveend", updateLayers);
   }, [map, showBuildings, showFloodArea, onLayerChange]);
 
   return <Box ref={mapRef} sx={{ width: "100%", height: "100%" }} />;
@@ -152,10 +141,12 @@ const MapComponent = ({ showBuildings, showFloodArea, onLayerChange }) => {
 export default MapComponent;
 
 const getGeoJSON = async (url) => {
-  const response = await fetch(url);
-  if (!response.ok) {
-    console.error("Data Belum Dimuat");
+  try {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error("Failed to fetch data");
+    return response.json();
+  } catch (error) {
+    console.error("Error fetching data:", error);
     return { type: "FeatureCollection", features: [] };
   }
-  return response.json();
 };

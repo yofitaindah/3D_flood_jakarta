@@ -1,16 +1,19 @@
-"use client";
+"use client"; // Tambahkan ini untuk Next.js
 
-import { Typography, Checkbox, FormControlLabel, FormGroup } from "@mui/material";
+import {
+  Typography,
+  Checkbox,
+  FormControlLabel,
+  FormGroup,
+} from "@mui/material";
 import { Box, IconButton, Menu, MenuItem, Popover } from "@mui/material";
 import React, { useState } from "react";
 import Image from "next/image";
 import MenuIcon from "@mui/icons-material/Menu";
 
-const Header = ({ onLayerChange }) => {
+const Header = ({ onLayerChange, showBuildings, showFloodArea }) => {
   const [anchorEl, setAnchorEl] = useState(null);
   const [layerAnchorEl, setLayerAnchorEl] = useState(null);
-  const [showBuildings, setShowBuildings] = useState(true); // Default checked
-  const [showFloodArea, setShowFloodArea] = useState(true); // Default checked
 
   // Handle burger menu open/close
   const handleMenuOpen = (event) => {
@@ -30,13 +33,11 @@ const Header = ({ onLayerChange }) => {
 
   // Handle checkbox changes
   const handleBuildingsChange = (event) => {
-    setShowBuildings(event.target.checked);
-    onLayerChange(event.target.checked, "buildings");
+    onLayerChange("buildings", event.target.checked);
   };
 
   const handleFloodAreaChange = (event) => {
-    setShowFloodArea(event.target.checked);
-    onLayerChange(event.target.checked, "floodArea");
+    onLayerChange("floodArea", event.target.checked);
   };
 
   return (
@@ -102,6 +103,7 @@ const Header = ({ onLayerChange }) => {
         }}
         sx={{
           mt: "40px",
+          zIndex: 1500,
         }}
       >
         <MenuItem onClick={handleLayerMenuOpen}>Layer</MenuItem>
