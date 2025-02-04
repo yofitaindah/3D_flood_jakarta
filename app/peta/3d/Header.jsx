@@ -16,6 +16,7 @@ const Header = ({
   showBuildings,
   showFloodArea1,
   showFloodArea2,
+  showFloodArea3,
 }) => {
   const [anchorEl, setAnchorEl] = useState(null);
   const [layerAnchorEl, setLayerAnchorEl] = useState(null);
@@ -47,6 +48,10 @@ const Header = ({
 
   const handleFloodArea2Change = (event) => {
     onLayerChange("floodArea2", event.target.checked);
+  };
+
+  const handleFloodArea3Change = (event) => {
+    onLayerChange("floodArea3", event.target.checked);
   };
 
   return (
@@ -172,6 +177,19 @@ const Header = ({
                 />
               }
               label="Banjir 0.8m"
+              sx={{
+                color: "blue", // Warna biru untuk teks
+              }}
+            />
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={showFloodArea3}
+                  onChange={handleFloodArea3Change}
+                  name="floodArea3"
+                />
+              }
+              label="Banjir 1.2m"
               sx={{
                 color: "blue", // Warna biru untuk teks
               }}

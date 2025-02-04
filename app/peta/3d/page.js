@@ -10,6 +10,7 @@ const Page = () => {
     buildings: true,
     floodArea1: true, //for 0.4m flood
     floodArea2: true, //for 0.8m flood
+    floodArea3: true, //for 1.2m flood
   });
 
   const handleLayerChange = useCallback((layerName, checked) => {
@@ -38,11 +39,13 @@ const Page = () => {
         showBuildings={selectedLayers.buildings}
         showFloodArea1={selectedLayers.floodArea1}
         showFloodArea2={selectedLayers.floodArea2}
+        showFloodArea3={selectedLayers.floodArea3}
       />
       <MapComponent
         showBuildings={selectedLayers.buildings}
         showFloodArea1={selectedLayers.floodArea1}
         showFloodArea2={selectedLayers.floodArea2}
+        showFloodArea3={selectedLayers.floodArea3}
         onLayerChange={handleLayerChange}
       />
     </Box>

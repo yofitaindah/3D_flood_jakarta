@@ -9,6 +9,7 @@ const MapComponent = ({
   showBuildings,
   showFloodArea1,
   showFloodArea2,
+  showFloodArea3,
   onLayerChange,
 }) => {
   const mapRef = useRef(null);
@@ -63,6 +64,9 @@ const MapComponent = ({
       const genangan80GeoJson = await getGeoJSON(
         `/api/genangan_80cm?xmax=${xmax}&xmin=${xmin}&ymax=${ymax}&ymin=${ymin}`
       );
+      const genangan120GeoJson = await getGeoJSON(
+        `/api/genangan_120cm?xmax=${xmax}&xmin=${xmin}&ymax=${ymax}&ymin=${ymin}`
+      );
 
       const removeLayer = (layerId, sourceId) => {
         if (map.getLayer(layerId)) map.removeLayer(layerId);
@@ -71,6 +75,7 @@ const MapComponent = ({
 
       removeLayer("genangan_40cm_layer", "genangan_40cm");
       removeLayer("genangan_80cm_layer", "genangan_80cm");
+      removeLayer("genangan_120cm_layer", "genangan_120cm");
       removeLayer("bangunan-layer", "bangunan");
 
       if (showFloodArea1) {
@@ -123,6 +128,31 @@ const MapComponent = ({
         });
       }
 
+      if (showFloodArea3) {
+        map.addSource("genangan_120cm", {
+          type: "geojson",
+          data: genangan120GeoJson,
+        });
+        map.addLayer({
+          id: "genangan_120cm_layer",
+          type: "fill",
+          source: "genangan_120cm",
+          paint: {
+            "fill-color": [
+              "interpolate",
+              ["linear"],
+              ["get", "depth"],
+              0,
+              "lightblue",
+              1.4,
+              "blue",
+              2.8,
+              "darkblue",
+            ],
+          },
+        });
+      }
+
       if (showBuildings) {
         map.addSource("bangunan", { type: "geojson", data: bangunanGeoJson });
         map.addLayer({
@@ -159,6 +189,7 @@ const MapComponent = ({
         onLayerChange({
           floodLayer1: showFloodArea1 ? "genangan_40cm_layer" : null,
           floodLayer2: showFloodArea2 ? "genangan_80cm_layer" : null,
+          floodLayer3: showFloodArea3 ? "genangan_120cm_layer" : null,
           buildingLayer: showBuildings ? "bangunan-layer" : null,
         });
       }
@@ -168,7 +199,14 @@ const MapComponent = ({
     map.on("moveend", updateLayers);
 
     return () => map.off("moveend", updateLayers);
-  }, [map, showBuildings, showFloodArea1, showFloodArea2, onLayerChange]);
+  }, [
+    map,
+    showBuildings,
+    showFloodArea1,
+    showFloodArea2,
+    showFloodArea3,
+    onLayerChange,
+  ]);
 
   return <Box ref={mapRef} sx={{ width: "100%", height: "100%" }} />;
 };
