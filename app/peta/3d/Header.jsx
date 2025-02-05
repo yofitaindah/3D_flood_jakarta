@@ -153,6 +153,10 @@ const Header = ({
           vertical: "bottom",
           horizontal: "left",
         }}
+        transformOrigin={{
+          vertical: "top",
+          horizontal: "left",
+        }}
         sx={{
           mt: "10px",
         }}
