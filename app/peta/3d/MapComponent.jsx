@@ -12,6 +12,8 @@ const MapComponent = ({
   showFloodArea3,
   showFloodArea4,
   showFloodArea5,
+  showFloodArea6,
+  showFloodArea7,
   onLayerChange,
 }) => {
   const mapRef = useRef(null);
@@ -75,6 +77,12 @@ const MapComponent = ({
       const genangan200GeoJson = await getGeoJSON(
         `/api/genangan_200cm?xmax=${xmax}&xmin=${xmin}&ymax=${ymax}&ymin=${ymin}`
       );
+      const genangan240GeoJson = await getGeoJSON(
+        `/api/genangan_240cm?xmax=${xmax}&xmin=${xmin}&ymax=${ymax}&ymin=${ymin}`
+      );
+      const genangan280GeoJson = await getGeoJSON(
+        `/api/genangan_280cm?xmax=${xmax}&xmin=${xmin}&ymax=${ymax}&ymin=${ymin}`
+      );
 
       const removeLayer = (layerId, sourceId) => {
         if (map.getLayer(layerId)) map.removeLayer(layerId);
@@ -86,6 +94,8 @@ const MapComponent = ({
       removeLayer("genangan_120cm_layer", "genangan_120cm");
       removeLayer("genangan_160cm_layer", "genangan_160cm");
       removeLayer("genangan_200cm_layer", "genangan_200cm");
+      removeLayer("genangan_240cm_layer", "genangan_240cm");
+      removeLayer("genangan_280cm_layer", "genangan_280cm");
       removeLayer("bangunan-layer", "bangunan");
 
       if (showFloodArea1) {
@@ -213,6 +223,56 @@ const MapComponent = ({
         });
       }
 
+      if (showFloodArea6) {
+        map.addSource("genangan_240cm", {
+          type: "geojson",
+          data: genangan240GeoJson,
+        });
+        map.addLayer({
+          id: "genangan_240cm_layer",
+          type: "fill",
+          source: "genangan_240cm",
+          paint: {
+            "fill-color": [
+              "interpolate",
+              ["linear"],
+              ["get", "depth"],
+              0,
+              "lightblue",
+              1.4,
+              "blue",
+              2.8,
+              "darkblue",
+            ],
+          },
+        });
+      }
+
+      if (showFloodArea7) {
+        map.addSource("genangan_280cm", {
+          type: "geojson",
+          data: genangan280GeoJson,
+        });
+        map.addLayer({
+          id: "genangan_280cm_layer",
+          type: "fill",
+          source: "genangan_280cm",
+          paint: {
+            "fill-color": [
+              "interpolate",
+              ["linear"],
+              ["get", "depth"],
+              0,
+              "lightblue",
+              1.4,
+              "blue",
+              2.8,
+              "darkblue",
+            ],
+          },
+        });
+      }
+
       if (showBuildings) {
         map.addSource("bangunan", { type: "geojson", data: bangunanGeoJson });
         map.addLayer({
@@ -251,7 +311,9 @@ const MapComponent = ({
           floodLayer2: showFloodArea2 ? "genangan_80cm_layer" : null,
           floodLayer3: showFloodArea3 ? "genangan_120cm_layer" : null,
           floodLayer4: showFloodArea4 ? "genangan_160cm_layer" : null,
-          floodLayer5: showFloodArea5 ? "genangan_160cm_layer" : null,
+          floodLayer5: showFloodArea5 ? "genangan_200cm_layer" : null,
+          floodLayer6: showFloodArea6 ? "genangan_240cm_layer" : null,
+          floodLayer7: showFloodArea7 ? "genangan_280cm_layer" : null,
           buildingLayer: showBuildings ? "bangunan-layer" : null,
         });
       }
@@ -269,6 +331,8 @@ const MapComponent = ({
     showFloodArea3,
     showFloodArea4,
     showFloodArea5,
+    showFloodArea6,
+    showFloodArea7,
     onLayerChange,
   ]);
 
