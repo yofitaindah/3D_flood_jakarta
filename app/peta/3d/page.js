@@ -4,18 +4,22 @@ import { Box } from "@mui/material";
 import React, { useState, useCallback } from "react";
 import Header from "./Header";
 import MapComponent from "./MapComponent";
+import TimeSlider from "./TimeSlider";
 
 const Page = () => {
   const [selectedLayers, setSelectedLayers] = useState({
     buildings: true,
-    floodArea1: true, //for 0.4m flood
-    floodArea2: true, //for 0.8m flood
-    floodArea3: true, //for 1.2m flood
-    floodArea4: true, //for 1.6m flood
-    floodArea5: true, //for 2m flood
-    floodArea6: true, //for 2.4m flood
-    floodArea7: true, //for 2.8m flood
+    floodArea1: true,
+    floodArea2: true,
+    floodArea3: true,
+    floodArea4: true,
+    floodArea5: true,
+    floodArea6: true,
+    floodArea7: true,
   });
+
+  const [tmaValues] = useState([0, 40, 80, 120, 160, 200, 240, 280]);
+  const [selectedTMA, setSelectedTMA] = useState(tmaValues[0]);
 
   const handleLayerChange = useCallback((layerName, checked) => {
     setSelectedLayers((prevLayers) => ({
@@ -60,6 +64,10 @@ const Page = () => {
         showFloodArea7={selectedLayers.floodArea7}
         onLayerChange={handleLayerChange}
       />
+      {/* Tambahkan TimeSlider di sini */}
+      <Box sx={{ position: "absolute", bottom: 20, width: "80%" }}>
+        <TimeSlider tmaValues={tmaValues} onChange={setSelectedTMA} />
+      </Box>
     </Box>
   );
 };

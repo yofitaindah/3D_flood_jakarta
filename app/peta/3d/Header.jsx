@@ -136,7 +136,6 @@ const Header = ({
           "aria-labelledby": "menu-button",
         }}
         sx={{
-          mt: "40px",
           zIndex: 1500,
         }}
       >

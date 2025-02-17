@@ -14,10 +14,12 @@ const MapComponent = ({
   showFloodArea5,
   showFloodArea6,
   showFloodArea7,
+  // showFloodAll,
   onLayerChange,
 }) => {
   const mapRef = useRef(null);
   const [map, setMap] = useState(null);
+  const basemapEnum = "arcgis/light-gray";
 
   useEffect(() => {
     const mapInstance = new Map({
@@ -31,9 +33,9 @@ const MapComponent = ({
         sources: {
           osm: {
             type: "raster",
-            tiles: ["https://a.tile.openstreetmap.org/{z}/{x}/{y}.png"],
+            tiles: ["https://mt0.google.com/vt/lyrs=s&x={x}&y={y}&z={z}"],
             tileSize: 256,
-            attribution: "&copy; OpenStreetMap Contributors",
+            attribution: "",
             maxzoom: 19,
           },
         },
@@ -262,12 +264,8 @@ const MapComponent = ({
               "interpolate",
               ["linear"],
               ["get", "depth"],
-              0,
-              "lightblue",
-              1.4,
-              "blue",
               2.8,
-              "darkblue",
+              "blue",
             ],
           },
         });
@@ -304,6 +302,15 @@ const MapComponent = ({
           },
         });
       }
+
+      // if (showFloodAll) {
+      //   map.addSource("contours", {
+      //     type: "raster",
+      //     tiles: [
+      //       "https://jakartasatu.jakarta.go.id/server/rest/services/TR_Banjir_Simulasi_Updated_New/MapServer/tile/{z}/{y}/{x}",
+      //     ],
+      //   });
+      // }
 
       if (onLayerChange) {
         onLayerChange({
