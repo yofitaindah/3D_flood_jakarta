@@ -9,23 +9,35 @@ import TimeSlider from "./TimeSlider";
 const Page = () => {
   const [selectedLayers, setSelectedLayers] = useState({
     buildings: true,
-    floodArea1: true,
-    floodArea2: true,
-    floodArea3: true,
-    floodArea4: true,
-    floodArea5: true,
-    floodArea6: true,
-    floodArea7: true,
+    floodGate: true,
+    genanganAll: true,
+    street: true,
   });
 
-  const [tmaValues] = useState([0, 40, 80, 120, 160, 200, 240, 280]);
-  const [selectedTMA, setSelectedTMA] = useState(tmaValues[0]);
+  const [selectedTime, setSelectedTime] = useState("15:30"); // Changed to match TIMES array
+  const [basemap, setBasemap] = useState("google");
 
   const handleLayerChange = useCallback((layerName, checked) => {
     setSelectedLayers((prevLayers) => ({
       ...prevLayers,
       [layerName]: checked,
     }));
+    console.log(`Layer ${layerName} set to ${checked}`); // Debugging layer changes
+  }, []);
+
+  const handleBasemapChange = useCallback((newBasemap) => {
+    setBasemap(newBasemap);
+    console.log("Basemap changed to:", newBasemap); // Debugging
+  }, []);
+
+  const handleTimeChange = useCallback((time) => {
+    setSelectedTime(time);
+    console.log("Selected time:", time); // Debugging
+  }, []);
+
+  // Handle layer visibility changes from MapComponent
+  const handleMapLayerChange = useCallback((layers) => {
+    console.log("Active layers:", layers); // Log active layers for debugging
   }, []);
 
   return (
@@ -45,28 +57,33 @@ const Page = () => {
       <Header
         onLayerChange={handleLayerChange}
         showBuildings={selectedLayers.buildings}
-        showFloodArea1={selectedLayers.floodArea1}
-        showFloodArea2={selectedLayers.floodArea2}
-        showFloodArea3={selectedLayers.floodArea3}
-        showFloodArea4={selectedLayers.floodArea4}
-        showFloodArea5={selectedLayers.floodArea5}
-        showFloodArea6={selectedLayers.floodArea6}
-        showFloodArea7={selectedLayers.floodArea7}
+        showFloodGate={selectedLayers.floodGate}
+        showFloodAreaAll={selectedLayers.genanganAll}
+        showStreet={selectedLayers.street}
+        basemap={basemap}
+        onBasemapChange={handleBasemapChange}
       />
       <MapComponent
         showBuildings={selectedLayers.buildings}
-        showFloodArea1={selectedLayers.floodArea1}
-        showFloodArea2={selectedLayers.floodArea2}
-        showFloodArea3={selectedLayers.floodArea3}
-        showFloodArea4={selectedLayers.floodArea4}
-        showFloodArea5={selectedLayers.floodArea5}
-        showFloodArea6={selectedLayers.floodArea6}
-        showFloodArea7={selectedLayers.floodArea7}
-        onLayerChange={handleLayerChange}
+        showFloodGate={selectedLayers.floodGate}
+        showFloodAreaAll={selectedLayers.genanganAll}
+        showStreet={selectedLayers.street}
+        onLayerChange={handleMapLayerChange} // Updated to use callback
+        basemap={basemap}
+        onBasemapChange={handleBasemapChange}
+        selectedTime={selectedTime}
       />
-      {/* Tambahkan TimeSlider di sini */}
-      <Box sx={{ position: "absolute", bottom: 20, width: "80%" }}>
-        <TimeSlider tmaValues={tmaValues} onChange={setSelectedTMA} />
+      <Box
+        sx={{
+          position: "absolute",
+          bottom: 80, // Moved up to avoid overlap with legend/controls
+          left: 70, // Center horizontally
+          width: "80%",
+          maxWidth: 600, // Limit width for better UX
+          zIndex: 1,
+        }}
+      >
+        <TimeSlider onTimeChange={handleTimeChange} />
       </Box>
     </Box>
   );

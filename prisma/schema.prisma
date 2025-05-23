@@ -97,3 +97,9 @@ model genangan_80cm {
   range_m  String?
   depth    Float?
 }
+
+model pintu_air {
+  id       Int                     @id @default(autoincrement())
+  location Unsupported("geometry")
+  namapa   String?
+}

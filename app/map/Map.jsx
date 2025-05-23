@@ -33,6 +33,35 @@ const MapComponent = () => {
     map.current.addControl(new maplibregl.NavigationControl(), "top-right");
 
     map.current.on("load", () => {
+      map.current.addSource("wms-source", {
+        type: "raster",
+        tiles: [
+          "https://gis.dcktrp.id/gispublik/publik/ows?service=WMS&version=1.1.1&request=GetMap&layers=MasterBangunan&styles=&format=image/png&transparent=true&srs=EPSG:3857&bbox={bbox-epsg-3857}&width=256&height=256",
+        ],
+        tileSize: 256,
+      });
+
+      map.current.addLayer({
+        id: "wms-layer",
+        type: "raster",
+        source: "wms-source",
+      });
+
+      map.current.addSource("genangan-source", {
+        type: "geojson",
+        data: "https://dcktrp.jakarta.go.id/apigis/data/studio/d17c6b1089004a968f7ebb7402321eb5?properties=all",
+      });
+
+      map.current.addLayer({
+        id: "genangan-layer",
+        type: "fill",
+        source: "genangan-source",
+        paint: {
+          "fill-color": "blue",
+          "fill-opacity": 0.4,
+        },
+      });
+
       // Add GeoJSON source for admin 3D extrusion
       map.current.addSource("admin", {
         type: "geojson",

@@ -1,12 +1,20 @@
-"use client"; // Tambahkan ini untuk Next.js
+"use client";
 
 import {
   Typography,
   Checkbox,
   FormControlLabel,
   FormGroup,
+  Select,
+  MenuItem,
 } from "@mui/material";
-import { Box, IconButton, Menu, MenuItem, Popover } from "@mui/material";
+import {
+  Box,
+  IconButton,
+  Menu,
+  MenuItem as MenuItemBase,
+  Popover,
+} from "@mui/material";
 import React, { useState } from "react";
 import Image from "next/image";
 import MenuIcon from "@mui/icons-material/Menu";
@@ -14,18 +22,14 @@ import MenuIcon from "@mui/icons-material/Menu";
 const Header = ({
   onLayerChange,
   showBuildings,
-  showFloodArea1,
-  showFloodArea2,
-  showFloodArea3,
-  showFloodArea4,
-  showFloodArea5,
-  showFloodArea6,
-  showFloodArea7,
+  showFloodGate,
+  showFloodAreaAll,
+  basemap,
+  onBasemapChange,
 }) => {
   const [anchorEl, setAnchorEl] = useState(null);
   const [layerAnchorEl, setLayerAnchorEl] = useState(null);
 
-  // Handle burger menu open/close
   const handleMenuOpen = (event) => {
     setAnchorEl(event.currentTarget);
   };
@@ -33,51 +37,30 @@ const Header = ({
     setAnchorEl(null);
   };
 
-  // Handle layer menu open/close
   const handleLayerMenuOpen = (event) => {
-    setLayerAnchorEl(event.currentTarget);
+    setLayerAnchorEl(anchorEl);
+    handleMenuClose();
   };
   const handleLayerMenuClose = () => {
     setLayerAnchorEl(null);
   };
 
-  // Handle checkbox changes
   const handleBuildingsChange = (event) => {
     onLayerChange("buildings", event.target.checked);
   };
 
-  const handleFloodArea1Change = (event) => {
-    onLayerChange("floodArea1", event.target.checked);
+  const handleFloodGateChange = (event) => {
+    onLayerChange("floodGate", event.target.checked);
   };
 
-  const handleFloodArea2Change = (event) => {
-    onLayerChange("floodArea2", event.target.checked);
-  };
-
-  const handleFloodArea3Change = (event) => {
-    onLayerChange("floodArea3", event.target.checked);
-  };
-
-  const handleFloodArea4Change = (event) => {
-    onLayerChange("floodArea4", event.target.checked);
-  };
-
-  const handleFloodArea5Change = (event) => {
-    onLayerChange("floodArea5", event.target.checked);
-  };
-
-  const handleFloodArea6Change = (event) => {
-    onLayerChange("floodArea6", event.target.checked);
-  };
-
-  const handleFloodArea7Change = (event) => {
-    onLayerChange("floodArea7", event.target.checked);
+  const handleGenanganAllChange = (event) => {
+    onLayerChange("genanganAll", event.target.checked);
   };
 
   return (
     <Box
       sx={{
-        width: "90%",
+        width: { xs: "95%", md: "90%" },
         height: "50px",
         position: "absolute",
         display: "flex",
@@ -91,7 +74,6 @@ const Header = ({
         boxShadow: "0px 2px 5px rgba(0, 0, 0, 0.1)",
       }}
     >
-      {/* Logo */}
       <Box sx={{ display: "flex", alignItems: "center" }}>
         <Image
           src="/logo_js.png"
@@ -102,7 +84,6 @@ const Header = ({
         />
       </Box>
 
-      {/* Title */}
       <Typography
         variant="h6"
         component="div"
@@ -115,7 +96,6 @@ const Header = ({
         3D Flood WebGIS Jakarta
       </Typography>
 
-      {/* Burger Button */}
       <IconButton
         sx={{ marginLeft: "auto" }}
         onClick={handleMenuOpen}
@@ -126,7 +106,6 @@ const Header = ({
         <MenuIcon />
       </IconButton>
 
-      {/* Dropdown Menu */}
       <Menu
         id="menu"
         anchorEl={anchorEl}
@@ -142,7 +121,6 @@ const Header = ({
         <MenuItem onClick={handleLayerMenuOpen}>Layer</MenuItem>
       </Menu>
 
-      {/* Layer Options */}
       <Popover
         id="layer-menu"
         anchorEl={layerAnchorEl}
@@ -150,7 +128,7 @@ const Header = ({
         onClose={handleLayerMenuClose}
         anchorOrigin={{
           vertical: "bottom",
-          horizontal: "left",
+          horizontal: "right",
         }}
         transformOrigin={{
           vertical: "top",
@@ -175,101 +153,49 @@ const Header = ({
               }
               label="Bangunan"
               sx={{
-                color: "brown", // Warna coklat untuk teks
+                color: "brown",
               }}
             />
             <FormControlLabel
               control={
                 <Checkbox
-                  checked={showFloodArea1}
-                  onChange={handleFloodArea1Change}
-                  name="floodArea1"
+                  checked={showFloodAreaAll}
+                  onChange={handleGenanganAllChange}
+                  name="genanganAll"
                 />
               }
-              label="Banjir 0.4m"
+              label="Genangan Banjir"
               sx={{
-                color: "blue", // Warna biru untuk teks
+                color: "red",
               }}
             />
             <FormControlLabel
               control={
                 <Checkbox
-                  checked={showFloodArea2}
-                  onChange={handleFloodArea2Change}
-                  name="floodArea2"
+                  checked={showFloodGate}
+                  onChange={handleFloodGateChange}
+                  name="floodGate"
                 />
               }
-              label="Banjir 0.8m"
+              label="Titik Pintu Air"
               sx={{
-                color: "blue", // Warna biru untuk teks
-              }}
-            />
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={showFloodArea3}
-                  onChange={handleFloodArea3Change}
-                  name="floodArea3"
-                />
-              }
-              label="Banjir 1.2m"
-              sx={{
-                color: "blue", // Warna biru untuk teks
-              }}
-            />
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={showFloodArea4}
-                  onChange={handleFloodArea4Change}
-                  name="floodArea4"
-                />
-              }
-              label="Banjir 1.6m"
-              sx={{
-                color: "blue", // Warna biru untuk teks
-              }}
-            />
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={showFloodArea5}
-                  onChange={handleFloodArea5Change}
-                  name="floodArea5"
-                />
-              }
-              label="Banjir 2m"
-              sx={{
-                color: "blue", // Warna biru untuk teks
-              }}
-            />
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={showFloodArea6}
-                  onChange={handleFloodArea6Change}
-                  name="floodArea6"
-                />
-              }
-              label="Banjir 2.4m"
-              sx={{
-                color: "blue", // Warna biru untuk teks
-              }}
-            />
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={showFloodArea7}
-                  onChange={handleFloodArea7Change}
-                  name="floodArea7"
-                />
-              }
-              label="Banjir >2.4m"
-              sx={{
-                color: "blue", // Warna biru untuk teks
+                color: "red",
               }}
             />
           </FormGroup>
+          <Typography variant="subtitle1" gutterBottom sx={{ mt: 1 }}>
+            Basemap
+          </Typography>
+          <Select
+            value={basemap}
+            onChange={(e) => onBasemapChange(e.target.value)}
+            size="small"
+            fullWidth
+            sx={{ mt: 1 }}
+          >
+            <MenuItem value="google">Google Maps</MenuItem>
+            <MenuItem value="osm">OpenStreetMap</MenuItem>
+          </Select>
         </Box>
       </Popover>
     </Box>
