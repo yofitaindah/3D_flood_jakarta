@@ -4,7 +4,7 @@ import { Box } from "@mui/material";
 import React, { useState, useCallback } from "react";
 import Header from "./Header";
 import MapComponent from "./MapComponent";
-import TimeSlider from "./TimeSlider";
+import TimeSlider from "./Timeslider";
 
 const Page = () => {
   const [selectedLayers, setSelectedLayers] = useState({
