@@ -112,7 +112,7 @@ const MapLegend = ({
             sx={{
               width: 20,
               height: 2,
-              backgroundColor: "#1E90FF",
+              backgroundColor: "#FF6200",
               border: "1px solid white",
               mr: 1,
             }}
@@ -139,6 +139,7 @@ const MapComponent = ({
   const [genanganData, setGenanganData] = useState(null);
   const [bangunanData, setBangunanData] = useState(null); // State baru untuk data bangunan
   const [jalanData, setJalanData] = useState(null);
+  const [pintuairData, setPintuairData] = useState(null);
 
   const initialView = {
     center: [106.862, -6.2222],
@@ -247,6 +248,19 @@ const MapComponent = ({
           setJalanData(jalanData);
           console.log("Initial jalanGeojson:", jalanData);
         }
+        if (showFloodGate) {
+          const pintuairResponse = await fetch(
+            "https://dcktrp.jakarta.go.id/apigis/data/studio/ee95d7aa422f4b1aa8a443ebba8083ab"
+          );
+          if (!pintuairResponse.ok) {
+            throw new Error(
+              `Failed to fetch flood gate data: ${pintuairResponse.status} ${pintuairResponse.statusText}`
+            );
+          }
+          const pintuairData = await pintuairResponse.json();
+          setPintuairData(pintuairData);
+          console.log("Initial pintuairGeojson:", pintuairData);
+        }
       } catch (error) {
         console.error("Error fetching data:", error);
         if (error.message.includes("flood area")) {
@@ -271,7 +285,7 @@ const MapComponent = ({
     };
 
     fetchData();
-  }, [showFloodAreaAll, showBuildings, showStreet]);
+  }, [showFloodAreaAll, showBuildings, showStreet, showFloodGate]);
 
   //Initialize map
   useEffect(() => {
@@ -330,11 +344,8 @@ const MapComponent = ({
       bangunanGeoJson = bangunanData; // Gunakan data yang sudah di-fetch
     }
 
-    if (showFloodGate) {
-      pintuairGeoJson = await getGeoJSON(
-        `/api/pintu_air?xmax=${xmax}&xmin=${xmin}&ymax=${ymax}&ymin=${ymin}`,
-        "flood gates"
-      );
+    if (showFloodGate && pintuairData) {
+      pintuairGeoJson = pintuairData;
     }
 
     if (showFloodAreaAll && genanganData) {
@@ -437,18 +448,28 @@ const MapComponent = ({
     }
 
     if (showFloodGate && pintuairGeoJson.features.length > 0) {
-      map.addSource("pintu_air", { type: "geojson", data: pintuairGeoJson });
-      map.addLayer({
-        id: "pintu_air-layer",
-        type: "circle",
-        source: "pintu_air",
-        paint: {
-          "circle-radius": 6,
-          "circle-color": "blue",
-          "circle-stroke-width": 1,
-          "circle-stroke-color": "#ffffff",
-        },
-      });
+      if (map.getSource("pintu_air")) {
+        map.getSource("pintu_air").setData(pintuairGeoJson);
+      } else {
+        map.addSource("pintu_air", {
+          type: "geojson",
+          data: pintuairGeoJson,
+        });
+      }
+      if (!map.getLayer("pintu_air-layer")) {
+        map.addLayer({
+          id: "pintu_air-layer",
+          type: "circle",
+          source: "pintu_air",
+          paint: {
+            "circle-radius": 6,
+            "circle-color": "blue",
+            "circle-stroke-width": 1,
+            "circle-stroke-color": "#ffffff",
+          },
+        });
+        console.log("pintu_air-layer added");
+      }
     }
 
     if (showStreet && jalanGeoJson.features.length > 0) {
@@ -466,7 +487,7 @@ const MapComponent = ({
           type: "line",
           source: "jalan",
           paint: {
-            "line-color": "#1E90FF",
+            "line-color": "#FF6200",
             "line-width": ["interpolate", ["linear"], ["zoom"], 12, 1, 16, 3],
             "line-opacity": 0.8,
           },
@@ -506,6 +527,7 @@ const MapComponent = ({
     bangunanData,
     genanganData,
     jalanData,
+    pintuairData,
   ]);
 
   const handleZoomIn = () => {
