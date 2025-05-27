@@ -3,34 +3,50 @@ import Box from "@mui/material/Box";
 import Slider from "@mui/material/Slider";
 import Typography from "@mui/material/Typography";
 
-const TIMES = ["15:30", "17:30", "18:30", "19:30", "20:30"];
-const marks = TIMES.map((_, index) => ({
-  value: index, // Hanya gunakan value untuk posisi tanda, tanpa label
-}));
+export default function TimeSlider({ onTimeChange, times = [] }) {
+  const [selectedTime, setSelectedTime] = React.useState(null);
 
-export default function TimeSlider({ onTimeChange }) {
-  const [selectedTime, setSelectedTime] = React.useState(TIMES[0]);
+  React.useEffect(() => {
+    if (times.length > 0 && !times.includes(selectedTime)) {
+      setSelectedTime(times[0]);
+      if (onTimeChange) {
+        onTimeChange(times[0]);
+      }
+    }
+  }, [times, onTimeChange]);
+
+  const marks = times.map((_, index) => ({
+    value: index,
+  }));
 
   const handleChange = (_, newValue) => {
-    const newTime = TIMES[newValue];
+    const newTime = times[newValue];
     setSelectedTime(newTime);
     if (onTimeChange) {
-      onTimeChange(newTime); // Kirim waktu yang dipilih ke komponen induk
+      onTimeChange(newTime);
     }
   };
+
+  if (times.length === 0) {
+    return (
+      <Box sx={{ width: 400, background: "white", p: 2, borderRadius: 2 }}>
+        <Typography variant="body2">Tidak ada data waktu genangan</Typography>
+      </Box>
+    );
+  }
 
   return (
     <Box sx={{ width: 400, background: "white", p: 2, borderRadius: 2 }}>
       <Slider
         marks={marks}
         step={1}
-        value={TIMES.indexOf(selectedTime)}
+        value={times.indexOf(selectedTime)}
         min={0}
-        max={TIMES.length - 1}
+        max={times.length - 1}
         onChange={handleChange}
       />
       <Box sx={{ display: "flex", justifyContent: "space-between" }}>
-        {TIMES.map((time) => (
+        {times.map((time) => (
           <Typography
             key={time}
             variant="body2"
@@ -40,7 +56,11 @@ export default function TimeSlider({ onTimeChange }) {
                 onTimeChange(time);
               }
             }}
-            sx={{ cursor: "pointer" }}
+            sx={{
+              cursor: "pointer",
+              fontWeight: time === selectedTime ? "bold" : "normal",
+              color: time === selectedTime ? "primary.main" : "text.primary",
+            }}
           >
             {time}
           </Typography>

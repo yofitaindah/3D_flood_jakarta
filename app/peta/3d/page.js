@@ -15,6 +15,7 @@ const Page = () => {
   });
 
   const [selectedTime, setSelectedTime] = useState("15:30"); // Changed to match TIMES array
+  const [times, setTimes] = useState([]);
   const [basemap, setBasemap] = useState("google");
 
   const handleLayerChange = useCallback((layerName, checked) => {
@@ -33,6 +34,11 @@ const Page = () => {
   const handleTimeChange = useCallback((time) => {
     setSelectedTime(time);
     console.log("Selected time:", time); // Debugging
+  }, []);
+
+  const handleTimesUpdate = useCallback((newTimes) => {
+    setTimes(newTimes);
+    console.log("Updated times:", newTimes);
   }, []);
 
   // Handle layer visibility changes from MapComponent
@@ -72,6 +78,8 @@ const Page = () => {
         basemap={basemap}
         onBasemapChange={handleBasemapChange}
         selectedTime={selectedTime}
+        onTimesUpdate={handleTimesUpdate}
+        onTimeChange={handleTimeChange}
       />
       <Box
         sx={{
@@ -83,7 +91,7 @@ const Page = () => {
           zIndex: 1,
         }}
       >
-        <TimeSlider onTimeChange={handleTimeChange} />
+        <TimeSlider onTimeChange={handleTimeChange} times={times} />
       </Box>
     </Box>
   );

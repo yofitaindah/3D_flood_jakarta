@@ -12,8 +12,41 @@ import FullscreenExitIcon from "@mui/icons-material/FullscreenExit";
 import "maplibre-gl/dist/maplibre-gl.css";
 import "react-toastify/dist/ReactToastify.css";
 
-// Daftar waktu dari TimeSlider
-const TIMES = ["15:30", "17:30", "18:30", "19:30", "20:30"];
+// Fungsi untuk memvalidasi dan membersihkan geometri
+const cleanGeometry = (geometry) => {
+  if (!geometry || geometry.type !== "MultiPolygon") return null;
+  const cleanedCoordinates = geometry.coordinates
+    .map((polygon) =>
+      polygon
+        .map((ring) => {
+          const uniqueRing = [];
+          for (let i = 0; i < ring.length; i++) {
+            const current = ring[i];
+            const next = ring[(i + 1) % ring.length];
+            if (
+              current[0] !== next[0] ||
+              current[1] !== next[1] ||
+              i === ring.length - 1
+            ) {
+              uniqueRing.push(current);
+            }
+          }
+          if (
+            uniqueRing.length >= 4 &&
+            uniqueRing[0][0] !== uniqueRing[uniqueRing.length - 1][0] &&
+            uniqueRing[0][1] !== uniqueRing[uniqueRing.length - 1][1]
+          ) {
+            uniqueRing.push(uniqueRing[0]);
+          }
+          return uniqueRing.length >= 4 ? uniqueRing : null;
+        })
+        .filter((ring) => ring)
+    )
+    .filter((polygon) => polygon.length > 0);
+  return cleanedCoordinates.length > 0
+    ? { type: "MultiPolygon", coordinates: cleanedCoordinates }
+    : null;
+};
 
 const MapLegend = ({
   showBuildings,
@@ -92,7 +125,7 @@ const MapLegend = ({
         </Box>
       )}
       {showFloodGate && (
-        <Box sx={{ display: "flex", alignItems: "center" }}>
+        <Box sx={{ display: "flex", alignItems: "center", mb: 1 }}>
           <Box
             sx={{
               width: 20,
@@ -107,7 +140,7 @@ const MapLegend = ({
         </Box>
       )}
       {showStreet && (
-        <Box sx={{ display: "flex", alignItems: "center" }}>
+        <Box sx={{ display: "flex", alignItems: "center", mb: 1 }}>
           <Box
             sx={{
               width: 20,
@@ -132,14 +165,18 @@ const MapComponent = ({
   onLayerChange,
   basemap,
   selectedTime,
+  onTimesUpdate,
+  onTimeChange,
 }) => {
   const mapRef = useRef(null);
   const [map, setMap] = useState(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [genanganData, setGenanganData] = useState(null);
-  const [bangunanData, setBangunanData] = useState(null); // State baru untuk data bangunan
+  const [bangunanData, setBangunanData] = useState(null);
   const [jalanData, setJalanData] = useState(null);
   const [pintuairData, setPintuairData] = useState(null);
+  const [availableTimes, setAvailableTimes] = useState([]);
+  const [initialDataFetched, setInitialDataFetched] = useState(false);
 
   const initialView = {
     center: [106.862, -6.2222],
@@ -190,211 +227,266 @@ const MapComponent = ({
     },
   };
 
-  // Fungsi untuk mengonversi waktu "HH:mm" ke menit sejak tengah malam
   const timeToMinutes = (timeStr) => {
+    try {
+      const [hours, minutes] = timeStr.split(":").map(Number);
+      return hours * 60 + minutes;
+    } catch (error) {
+      console.error("Error parsing time string:", timeStr, error);
+      return null;
+    }
+  };
+
+  const eventTimeToTimeString = (eventTime) => {
+    try {
+      if (!eventTime) {
+        console.warn("EVENT_TIME is null or undefined");
+        return null;
+      }
+      if (eventTime.includes("T")) {
+        return eventTime.split("T")[1].substring(0, 5);
+      }
+      console.warn("Unrecognized EVENT_TIME format:", eventTime);
+      return null;
+    } catch (error) {
+      console.error("Error parsing EVENT_TIME:", eventTime, error);
+      return null;
+    }
+  };
+
+  const formatTimeForCQL = (timeStr) => {
+    if (!timeStr) return null;
+    const date = new Date("2025-05-27"); // Sesuaikan dengan tanggal saat ini
     const [hours, minutes] = timeStr.split(":").map(Number);
-    return hours * 60 + minutes;
+    date.setUTCHours(hours, minutes, 0, 0);
+    return date.toISOString();
   };
 
-  // Fungsi untuk mengonversi event_time ke menit sejak tengah malam
-  const eventTimeToMinutes = (eventTime) => {
-    const timePart = eventTime.split(" ")[1].substring(0, 5); // Ambil "15:30" dari "5/21/2025 15:30:00"(SE Asia Standard Time)
-    return timeToMinutes(timePart);
-  };
-
+  // Fetch initial data only once on mount
   useEffect(() => {
-    if (!showFloodAreaAll && !showBuildings && !showStreet) return;
+    let isMounted = true;
 
-    const fetchData = async () => {
+    const fetchInitialData = async () => {
       try {
-        if (showFloodAreaAll) {
-          const genanganResponse = await fetch(
-            "https://dcktrp.jakarta.go.id/apigis/data/studio/d17c6b1089004a968f7ebb7402321eb5?properties=all"
+        const wfsBaseUrl = "https://gis-dev.dcktrp.id/gispublik/publik/ows";
+        const params = {
+          service: "WFS",
+          version: "1.0.0",
+          request: "GetFeature",
+          typeName: "publik:tr_banjir_simulasi",
+          outputFormat: "application/json",
+          srsName: "EPSG:4326",
+          maxFeatures: "5000",
+        };
+        const genanganUrl = `${wfsBaseUrl}?${new URLSearchParams(params)}`;
+        console.log("Fetching initial genangan data from:", genanganUrl);
+        const genanganResponse = await fetch(genanganUrl, {
+          mode: "cors",
+          credentials: "omit",
+        });
+        if (!genanganResponse.ok) {
+          throw new Error(
+            `Failed to fetch initial flood area data: ${genanganResponse.status} ${genanganResponse.statusText}`
           );
-          if (!genanganResponse.ok) {
-            throw new Error(
-              `Failed to fetch flood area data: ${genanganResponse.status} ${genanganResponse.statusText}`
-            );
-          }
-          const genanganData = await genanganResponse.json();
+        }
+        const genanganData = await genanganResponse.json();
+        console.log("Fetched initial genanganData:", genanganData);
+        if (isMounted) {
           setGenanganData(genanganData);
-          console.log("Initial genanganGeojson:", genanganData);
+          setInitialDataFetched(true);
         }
 
+        // Fetch other layers without filtering by time
+        const commonParams = {
+          service: "WFS",
+          version: "1.0.0",
+          request: "GetFeature",
+          outputFormat: "application/json",
+          srsName: "EPSG:4326",
+          maxFeatures: "5000",
+        };
+
         if (showBuildings) {
-          const bangunanResponse = await fetch(
-            "https://dcktrp.jakarta.go.id/apigis/data/studio/fc9eacd5de3c427892dce3b34141345a"
-          );
+          const bangunanParams = {
+            ...commonParams,
+            typeName: "publik:tr_banjir_bangunan",
+          };
+          const bangunanUrl = `${wfsBaseUrl}?${new URLSearchParams(
+            bangunanParams
+          )}`;
+          console.log("Fetching initial bangunan data from:", bangunanUrl);
+          const bangunanResponse = await fetch(bangunanUrl, {
+            mode: "cors",
+            credentials: "omit",
+          });
           if (!bangunanResponse.ok) {
             throw new Error(
-              `Failed to fetch buildings data: ${bangunanResponse.status} ${bangunanResponse.statusText}`
+              `Failed to fetch initial buildings data: ${bangunanResponse.status} ${bangunanResponse.statusText}`
             );
           }
           const bangunanData = await bangunanResponse.json();
-          setBangunanData(bangunanData);
-          console.log("Initial bangunanGeojson:", bangunanData);
+          if (isMounted) setBangunanData(bangunanData);
         }
 
         if (showStreet) {
-          const jalanResponse = await fetch(
-            "https://dcktrp.jakarta.go.id/apigis/data/studio/c242a99c251842b6b057888e0bd0adec"
-          );
+          const jalanParams = {
+            ...commonParams,
+            typeName: "publik:tr_banjir_jalan",
+          };
+          const jalanUrl = `${wfsBaseUrl}?${new URLSearchParams(jalanParams)}`;
+          console.log("Fetching initial jalan data from:", jalanUrl);
+          const jalanResponse = await fetch(jalanUrl, {
+            mode: "cors",
+            credentials: "omit",
+          });
           if (!jalanResponse.ok) {
             throw new Error(
-              `Failed to fetch street data: ${jalanResponse.status} ${jalanResponse.statusText}`
+              `Failed to fetch initial street data: ${jalanResponse.status} ${jalanResponse.statusText}`
             );
           }
           const jalanData = await jalanResponse.json();
-          setJalanData(jalanData);
-          console.log("Initial jalanGeojson:", jalanData);
+          if (isMounted) setJalanData(jalanData);
         }
+
         if (showFloodGate) {
-          const pintuairResponse = await fetch(
-            "https://dcktrp.jakarta.go.id/apigis/data/studio/ee95d7aa422f4b1aa8a443ebba8083ab"
-          );
+          const pintuairUrl =
+            "https://dcktrp.jakarta.go.id/apigis/data/studio/ee95d7aa422f4b1aa8a443ebba8083ab";
+          console.log("Fetching initial pintuair data from:", pintuairUrl);
+          const pintuairResponse = await fetch(pintuairUrl, {
+            mode: "cors",
+            credentials: "omit",
+          });
           if (!pintuairResponse.ok) {
             throw new Error(
-              `Failed to fetch flood gate data: ${pintuairResponse.status} ${pintuairResponse.statusText}`
+              `Failed to fetch initial flood gate data: ${pintuairResponse.status} ${pintuairResponse.statusText}`
             );
           }
           const pintuairData = await pintuairResponse.json();
-          setPintuairData(pintuairData);
-          console.log("Initial pintuairGeojson:", pintuairData);
+          if (isMounted) setPintuairData(pintuairData);
         }
       } catch (error) {
-        console.error("Error fetching data:", error);
-        if (error.message.includes("flood area")) {
-          toast.error(
-            "Failed to load flood area data. Some layers may be missing."
-          );
+        console.error("Error fetching initial data:", error);
+        toast.error(
+          "Failed to load initial data. Check WFS service or network."
+        );
+        if (isMounted) {
           setGenanganData({ type: "FeatureCollection", features: [] });
-        }
-        if (error.message.includes("buildings")) {
-          toast.error(
-            "Failed to load buildings data. Some layers may be missing."
-          );
           setBangunanData({ type: "FeatureCollection", features: [] });
-        }
-        if (error.message.includes("street")) {
-          toast.error(
-            "Failed to load street data. Some layers may be missing."
-          );
           setJalanData({ type: "FeatureCollection", features: [] });
+          setPintuairData({ type: "FeatureCollection", features: [] });
+          setInitialDataFetched(true);
         }
       }
     };
 
-    fetchData();
-  }, [showFloodAreaAll, showBuildings, showStreet, showFloodGate]);
+    fetchInitialData();
+    return () => {
+      isMounted = false;
+    };
+  }, [showBuildings, showFloodGate, showFloodAreaAll, showStreet]);
 
-  //Initialize map
+  // Extract unique times and set default to the latest EVENT_TIME
   useEffect(() => {
-    const mapInstance = new Map({
-      container: mapRef.current,
-      center: initialView.center,
-      zoom: initialView.zoom,
-      pitch: initialView.pitch,
-      bearing: initialView.bearing,
-      zoomControl: false,
-      style: basemaps.google,
-    });
-
-    setMap(mapInstance);
-
-    return () => mapInstance.remove();
-  }, []);
-
-  useEffect(() => {
-    if (!map || !basemap) return;
-
-    const currentCenter = map.getCenter();
-    const currentZoom = map.getZoom();
-    const currentPitch = map.getPitch();
-    const currentBearing = map.getBearing();
-
-    map.setStyle(basemaps[basemap]);
-
-    map.on("style.load", () => {
-      map.setCenter(currentCenter);
-      map.setZoom(currentZoom);
-      map.setPitch(currentPitch);
-      map.setBearing(currentBearing);
-      updateLayers();
-    });
-  }, [map, basemap]);
-
-  const updateLayers = async () => {
-    if (!map) return;
-
-    const bbox = map.getBounds();
-    if (!bbox || !bbox._sw || !bbox._ne) {
-      console.warn("Map bounds not ready, skipping layer update");
+    if (!genanganData || !genanganData.features || !initialDataFetched) {
+      console.log(
+        "genanganData is null, has no features, or initial fetch not complete:",
+        genanganData
+      );
+      setAvailableTimes([]);
       return;
     }
+    console.log(
+      "Sample feature properties:",
+      genanganData.features.slice(0, 5).map((f) => f.properties)
+    );
+    const uniqueTimes = [
+      ...new Set(
+        genanganData.features
+          .map((feature) =>
+            eventTimeToTimeString(feature.properties?.EVENT_TIME)
+          )
+          .filter((time) => time)
+      ),
+    ].sort((a, b) => timeToMinutes(a) - timeToMinutes(b));
+    console.log("Extracted unique times:", uniqueTimes);
+    setAvailableTimes(uniqueTimes);
+    if (uniqueTimes.length > 0 && onTimesUpdate) {
+      onTimesUpdate(uniqueTimes);
+      const latestTime = uniqueTimes[uniqueTimes.length - 1]; // Use the latest time
+      console.log(
+        `Setting default time to latest ${latestTime} based on initial data.`
+      );
+      if (
+        onTimeChange &&
+        (!selectedTime || !uniqueTimes.includes(selectedTime))
+      ) {
+        onTimeChange(latestTime); // Set default to latest time if not already set
+      }
+    } else {
+      console.warn("No valid unique times extracted from data");
+      if (onTimeChange) onTimeChange(null);
+      toast.warn("No valid time data available for flood areas.");
+    }
+  }, [
+    genanganData,
+    onTimesUpdate,
+    onTimeChange,
+    initialDataFetched,
+    selectedTime,
+  ]);
 
-    const [xmin, ymin] = [bbox._sw.lng, bbox._sw.lat];
-    const [xmax, ymax] = [bbox._ne.lng, bbox._ne.lat];
+  // Update layers only when map style is loaded
+  const updateLayers = (mapInstance) => {
+    if (!mapInstance || !mapInstance.isStyleLoaded()) return;
+
+    let filteredGenanganData = { type: "FeatureCollection", features: [] };
+    if (genanganData && genanganData.features) {
+      const cqlTime = selectedTime ? formatTimeForCQL(selectedTime) : null;
+      filteredGenanganData.features = genanganData.features
+        .filter((feature) => {
+          const featureTime = eventTimeToTimeString(
+            feature.properties?.EVENT_TIME
+          );
+          return (
+            !cqlTime ||
+            (featureTime && formatTimeForCQL(featureTime) === cqlTime)
+          );
+        })
+        .map((feature) => ({
+          ...feature,
+          geometry: cleanGeometry(feature.geometry),
+        }))
+        .filter((feature) => feature.geometry);
+    }
 
     let bangunanGeoJson = { type: "FeatureCollection", features: [] };
-    let pintuairGeoJson = { type: "FeatureCollection", features: [] };
-    let genanganGeojson = { type: "FeatureCollection", features: [] };
+    if (bangunanData && bangunanData.features) {
+      bangunanGeoJson.features = bangunanData.features
+        .map((feature) => ({
+          ...feature,
+          geometry: cleanGeometry(feature.geometry),
+        }))
+        .filter((feature) => feature.geometry);
+    }
+
     let jalanGeoJson = { type: "FeatureCollection", features: [] };
-
-    if (showBuildings && bangunanData) {
-      bangunanGeoJson = bangunanData; // Gunakan data yang sudah di-fetch
+    if (jalanData && jalanData.features) {
+      jalanGeoJson.features = jalanData.features
+        .map((feature) => ({
+          ...feature,
+          geometry: cleanGeometry(feature.geometry),
+        }))
+        .filter((feature) => feature.geometry);
     }
 
-    if (showFloodGate && pintuairData) {
-      pintuairGeoJson = pintuairData;
-    }
-
-    if (showFloodAreaAll && genanganData) {
-      const selectedIndex = TIMES.indexOf(selectedTime);
-      let startMinutes, endMinutes;
-
-      if (selectedIndex === 0) {
-        startMinutes = 0; // 00:00
-        endMinutes = timeToMinutes("15:30");
-      } else {
-        const prevTime = TIMES[selectedIndex - 1];
-        startMinutes = timeToMinutes(prevTime) + 1;
-        endMinutes = timeToMinutes(selectedTime);
-      }
-
-      genanganGeojson = {
-        type: "FeatureCollection",
-        features: genanganData.features.filter((feature) => {
-          const eventMinutes = eventTimeToMinutes(
-            feature.properties.event_time
-          );
-          return eventMinutes >= startMinutes && eventMinutes <= endMinutes;
-        }),
-      };
-
-      const startTime =
-        selectedIndex === 0 ? "00:00" : TIMES[selectedIndex - 1] + ":01";
-      if (genanganGeojson.features.length === 0) {
-        console.log(
-          `No genangan data found for time range ${startTime} - ${selectedTime}`
-        );
-        toast.info(
-          `No flood area data available for ${startTime} - ${selectedTime}. Possibly no rain.`
-        );
-      } else {
-        console.log(
-          `Filtered genanganGeojson for time range ${startTime} - ${selectedTime}:`,
-          genanganGeojson
-        );
-      }
-    }
-
-    if (showStreet && jalanData) {
-      jalanGeoJson = jalanData;
+    let pintuairGeoJson = { type: "FeatureCollection", features: [] };
+    if (pintuairData && pintuairData.features) {
+      pintuairGeoJson.features = pintuairData.features;
     }
 
     const removeLayer = (layerId, sourceId) => {
-      if (map.getLayer(layerId)) map.removeLayer(layerId);
-      if (map.getSource(sourceId)) map.removeSource(sourceId);
+      if (mapInstance.getLayer(layerId)) mapInstance.removeLayer(layerId);
+      if (mapInstance.getSource(sourceId)) mapInstance.removeSource(sourceId);
     };
 
     removeLayer("bangunan-layer", "bangunan");
@@ -402,62 +494,53 @@ const MapComponent = ({
     removeLayer("genangan_all_layer", "genangan");
     removeLayer("jalan-layer", "jalan");
 
-    if (showFloodAreaAll && genanganGeojson.features.length > 0) {
-      if (map.getSource("genangan")) {
-        map.getSource("genangan").setData(genanganGeojson);
-      } else {
-        map.addSource("genangan", {
+    if (showFloodAreaAll && filteredGenanganData.features.length > 0) {
+      if (mapInstance.getSource("genangan"))
+        mapInstance.getSource("genangan").setData(filteredGenanganData);
+      else
+        mapInstance.addSource("genangan", {
           type: "geojson",
-          data: genanganGeojson,
+          data: filteredGenanganData,
         });
-      }
-      if (!map.getLayer("genangan_all_layer")) {
-        map.addLayer({
+      if (!mapInstance.getLayer("genangan_all_layer")) {
+        mapInstance.addLayer({
           id: "genangan_all_layer",
           type: "fill",
           source: "genangan",
-          paint: {
-            "fill-color": "lightblue",
-          },
+          paint: { "fill-color": "lightblue", "fill-opacity": 0.4 },
           beforeId: "bangunan-layer",
         });
-        console.log("genangan_all_layer added");
       }
     }
 
     if (showBuildings && bangunanGeoJson.features.length > 0) {
-      if (map.getSource("bangunan")) {
-        map.getSource("bangunan").setData(bangunanGeoJson);
-      } else {
-        map.addSource("bangunan", {
+      if (mapInstance.getSource("bangunan"))
+        mapInstance.getSource("bangunan").setData(bangunanGeoJson);
+      else
+        mapInstance.addSource("bangunan", {
           type: "geojson",
           data: bangunanGeoJson,
         });
-      }
-      if (!map.getLayer("bangunan-layer")) {
-        map.addLayer({
+      if (!mapInstance.getLayer("bangunan-layer")) {
+        mapInstance.addLayer({
           id: "bangunan-layer",
-          type: "fill", // Ubah dari fill-extrusion ke fill untuk 2D
+          type: "fill",
           source: "bangunan",
-          paint: {
-            "fill-color": "brown", // Warna solid brown
-          },
+          paint: { "fill-color": "brown" },
         });
-        console.log("bangunan-layer added");
       }
     }
 
     if (showFloodGate && pintuairGeoJson.features.length > 0) {
-      if (map.getSource("pintu_air")) {
-        map.getSource("pintu_air").setData(pintuairGeoJson);
-      } else {
-        map.addSource("pintu_air", {
+      if (mapInstance.getSource("pintu_air"))
+        mapInstance.getSource("pintu_air").setData(pintuairGeoJson);
+      else
+        mapInstance.addSource("pintu_air", {
           type: "geojson",
           data: pintuairGeoJson,
         });
-      }
-      if (!map.getLayer("pintu_air-layer")) {
-        map.addLayer({
+      if (!mapInstance.getLayer("pintu_air-layer")) {
+        mapInstance.addLayer({
           id: "pintu_air-layer",
           type: "circle",
           source: "pintu_air",
@@ -468,21 +551,16 @@ const MapComponent = ({
             "circle-stroke-color": "#ffffff",
           },
         });
-        console.log("pintu_air-layer added");
       }
     }
 
     if (showStreet && jalanGeoJson.features.length > 0) {
-      if (map.getSource("jalan")) {
-        map.getSource("jalan").setData(jalanGeoJson);
-      } else {
-        map.addSource("jalan", {
-          type: "geojson",
-          data: jalanGeoJson,
-        });
-      }
-      if (!map.getLayer("jalan-layer")) {
-        map.addLayer({
+      if (mapInstance.getSource("jalan"))
+        mapInstance.getSource("jalan").setData(jalanGeoJson);
+      else
+        mapInstance.addSource("jalan", { type: "geojson", data: jalanGeoJson });
+      if (!mapInstance.getLayer("jalan-layer")) {
+        mapInstance.addLayer({
           id: "jalan-layer",
           type: "line",
           source: "jalan",
@@ -493,7 +571,6 @@ const MapComponent = ({
           },
           beforeId: "bangunan-layer",
         });
-        console.log("jalan-layer added");
       }
     }
 
@@ -508,14 +585,49 @@ const MapComponent = ({
   };
 
   useEffect(() => {
-    if (!map) return;
+    const mapInstance = new Map({
+      container: mapRef.current,
+      center: initialView.center,
+      zoom: initialView.zoom,
+      pitch: initialView.pitch,
+      bearing: initialView.bearing,
+      zoomControl: false,
+      style: basemaps.google,
+    });
+    setMap(mapInstance);
 
-    updateLayers();
-    map.on("moveend", updateLayers);
+    mapInstance.on("style.load", () => {
+      console.log("Map style loaded successfully");
+      updateLayers(mapInstance);
+    });
 
     return () => {
-      map.off("moveend", updateLayers);
+      if (mapInstance) {
+        mapInstance.off("style.load", updateLayers);
+        mapInstance.remove();
+      }
     };
+  }, []);
+
+  useEffect(() => {
+    if (!map || !basemap) return;
+    const currentCenter = map.getCenter();
+    const currentZoom = map.getZoom();
+    const currentPitch = map.getPitch();
+    const currentBearing = map.getBearing();
+    map.setStyle(basemaps[basemap]);
+    map.on("style.load", () => {
+      map.setCenter(currentCenter);
+      map.setZoom(currentZoom);
+      map.setPitch(currentPitch);
+      map.setBearing(currentBearing);
+      updateLayers(map);
+    });
+  }, [map, basemap]);
+
+  useEffect(() => {
+    if (!map || !map.isStyleLoaded()) return;
+    updateLayers(map);
   }, [
     map,
     showBuildings,
@@ -524,63 +636,39 @@ const MapComponent = ({
     showStreet,
     onLayerChange,
     selectedTime,
-    bangunanData,
     genanganData,
+    bangunanData,
     jalanData,
     pintuairData,
   ]);
 
-  const handleZoomIn = () => {
-    if (map) map.zoomIn({ duration: 500 });
-  };
-
-  const handleZoomOut = () => {
-    if (map) map.zoomOut({ duration: 500 });
-  };
-
-  const handleResetView = () => {
-    if (map) {
-      map.flyTo({
-        center: initialView.center,
-        zoom: initialView.zoom,
-        pitch: initialView.pitch,
-        bearing: initialView.bearing,
-        duration: 1000,
-      });
-    }
-  };
-
+  const handleZoomIn = () => map?.zoomIn({ duration: 500 });
+  const handleZoomOut = () => map?.zoomOut({ duration: 500 });
+  const handleResetView = () => map?.flyTo({ ...initialView, duration: 1000 });
   const handleFullscreenToggle = () => {
     if (!map) return;
     const elem = mapRef.current;
     if (!isFullscreen) {
-      if (elem.requestFullscreen) {
-        elem.requestFullscreen();
-      } else if (elem.webkitRequestFullscreen) {
-        elem.webkitRequestFullscreen();
-      } else if (elem.msRequestFullscreen) {
-        elem.msRequestFullscreen();
-      }
+      if (elem.requestFullscreen) elem.requestFullscreen();
+      else if (elem.webkitRequestFullscreen) elem.webkitRequestFullscreen();
+      else if (elem.msRequestFullscreen) elem.msRequestFullscreen();
       setIsFullscreen(true);
     } else {
-      if (document.exitFullscreen) {
-        document.exitFullscreen();
-      } else if (document.webkitExitFullscreen) {
-        document.webkitExitFullscreen();
-      } else if (document.msExitFullscreen) {
-        document.msExitFullscreen();
-      }
+      if (document.exitFullscreen) document.exitFullscreen();
+      else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+      else if (document.msExitFullscreen) document.msExitFullscreen();
       setIsFullscreen(false);
     }
   };
 
   useEffect(() => {
-    const handleFullscreenChange = () => {
-      setIsFullscreen(!!document.fullscreenElement);
-    };
-    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    document.addEventListener("fullscreenchange", () =>
+      setIsFullscreen(!!document.fullscreenElement)
+    );
     return () =>
-      document.removeEventListener("fullscreenchange", handleFullscreenChange);
+      document.removeEventListener("fullscreenchange", () =>
+        setIsFullscreen(!!document.fullscreenElement)
+      );
   }, []);
 
   return (
@@ -633,21 +721,3 @@ const MapComponent = ({
 };
 
 export default MapComponent;
-
-const getGeoJSON = async (url, layerType) => {
-  try {
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(
-        `Failed to fetch ${layerType} data: ${response.status} ${response.statusText}`
-      );
-    }
-    return response.json();
-  } catch (error) {
-    console.error(`Error fetching ${layerType} data from ${url}:`, error);
-    toast.error(
-      `Failed to load ${layerType} data. Some layers may be missing.`
-    );
-    return { type: "FeatureCollection", features: [] };
-  }
-};
