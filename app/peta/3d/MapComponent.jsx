@@ -77,7 +77,6 @@ const MapLegend = ({
               width: 20,
               height: 20,
               backgroundColor: "lightblue",
-              opacity: 0.4,
               mr: 1,
             }}
           />
