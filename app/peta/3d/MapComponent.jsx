@@ -12,157 +12,240 @@ import FullscreenExitIcon from "@mui/icons-material/FullscreenExit";
 import "maplibre-gl/dist/maplibre-gl.css";
 import "react-toastify/dist/ReactToastify.css";
 
-// Fungsi untuk memvalidasi dan membersihkan geometri
+// Configuration
+const CONFIG = {
+  WFS_URL: "https://gis-dev.dcktrp.id/gispublik/publik/ows",
+  TIME_API_URL:
+    "https://jakartasatu.jakarta.go.id/api-jakartasatu/simulasi/time_banjir/",
+  PINTUAIR_URL:
+    "https://dcktrp.jakarta.go.id/apigis/data/studio/ee95d7aa422f4b1aa8a443ebba8083ab",
+  INITIAL_VIEW: {
+    center: [106.862, -6.2222],
+    zoom: 15,
+    pitch: 45,
+    bearing: -17.6,
+  },
+  WFS_PARAMS: {
+    service: "WFS",
+    version: "1.0.0",
+    request: "GetFeature",
+    outputFormat: "application/json",
+    srsName: "EPSG:4326",
+    maxFeatures: "5000",
+  },
+  BASEMAPS: {
+    google: {
+      tiles: ["https://mt0.google.com/vt/lyrs=s&x={x}&y={y}&z={z}"],
+      attribution: "© Google Maps",
+    },
+    osm: {
+      tiles: ["https://{a-c}.tile.openstreetmap.org/{z}/{x}/{y}.png"],
+      attribution:
+        '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+    },
+  },
+  LAYERS: {
+    genangan: {
+      id: "genangan_all_layer",
+      source: "genangan",
+      type: "fill",
+      paint: { "fill-color": "lightblue", "fill-opacity": 0.4 },
+      beforeId: "bangunan-layer",
+    },
+    bangunan: {
+      id: "bangunan-layer",
+      source: "bangunan",
+      type: "fill",
+      paint: { "fill-color": "blue", "fill-opacity": 0.4 },
+    },
+    pintu_air: {
+      id: "pintu_air-layer",
+      source: "pintu_air",
+      type: "circle",
+      paint: {
+        "circle-radius": 6,
+        "circle-color": "blue",
+        "circle-stroke-width": 1,
+        "circle-stroke-color": "#ffffff",
+      },
+    },
+    jalan: {
+      id: "jalan-layer",
+      source: "jalan",
+      type: "line",
+      paint: {
+        "line-color": "#FF6200",
+        "line-width": ["interpolate", ["linear"], ["zoom"], 12, 1, 16, 3],
+        "line-opacity": 0.8,
+      },
+      beforeId: "bangunan-layer",
+    },
+  },
+  LEGEND: [
+    {
+      key: "showFloodAreaAll",
+      color: "lightblue",
+      label: "Genangan",
+      shape: "square",
+    },
+    {
+      key: "showBuildings",
+      label: "Bangunan (Height)",
+      subItems: [
+        { height: "0m", color: "saddlebrown" },
+        { height: "15m", color: "peru" },
+        { height: "35m", color: "burlywood" },
+      ],
+    },
+    {
+      key: "showFloodGate",
+      color: "blue",
+      label: "Pintu Air",
+      shape: "circle",
+    },
+    { key: "showStreet", color: "#FF6200", label: "Jalan", shape: "line" },
+  ],
+};
+
+// Utility functions
 const cleanGeometry = (geometry) => {
   if (!geometry || geometry.type !== "MultiPolygon") return null;
-  const cleanedCoordinates = geometry.coordinates
+  const cleaned = geometry.coordinates
     .map((polygon) =>
       polygon
         .map((ring) => {
-          const uniqueRing = [];
-          for (let i = 0; i < ring.length; i++) {
-            const current = ring[i];
-            const next = ring[(i + 1) % ring.length];
-            if (
-              current[0] !== next[0] ||
-              current[1] !== next[1] ||
-              i === ring.length - 1
-            ) {
-              uniqueRing.push(current);
-            }
-          }
+          const unique = ring.filter(
+            (pt, i) =>
+              i === ring.length - 1 ||
+              pt[0] !== ring[(i + 1) % ring.length][0] ||
+              pt[1] !== ring[(i + 1) % ring.length][1]
+          );
           if (
-            uniqueRing.length >= 4 &&
-            uniqueRing[0][0] !== uniqueRing[uniqueRing.length - 1][0] &&
-            uniqueRing[0][1] !== uniqueRing[uniqueRing.length - 1][1]
-          ) {
-            uniqueRing.push(uniqueRing[0]);
-          }
-          return uniqueRing.length >= 4 ? uniqueRing : null;
+            unique.length >= 4 &&
+            (unique[0][0] !== unique[unique.length - 1][0] ||
+              unique[0][1] !== unique[unique.length - 1][1])
+          )
+            unique.push(unique[0]);
+          return unique.length >= 4 ? unique : null;
         })
-        .filter((ring) => ring)
+        .filter(Boolean)
     )
-    .filter((polygon) => polygon.length > 0);
-  return cleanedCoordinates.length > 0
-    ? { type: "MultiPolygon", coordinates: cleanedCoordinates }
-    : null;
+    .filter((p) => p.length);
+  return cleaned.length ? { type: "MultiPolygon", coordinates: cleaned } : null;
 };
 
+const parseTime = (eventTime) =>
+  eventTime?.includes("T")
+    ? eventTime.split("T")[1].substring(0, 5)
+    : eventTime;
+const timeToMinutes = (timeStr) => {
+  try {
+    const [h, m] = timeStr.split(":").map(Number);
+    return h * 60 + m;
+  } catch {
+    return null;
+  }
+};
+const formatCQLTime = (timeStr) => {
+  if (!timeStr) return null;
+  const [h, m] = timeStr.split(":").map(Number);
+  const date = new Date("2025-05-27");
+  date.setUTCHours(h, m, 0, 0);
+  return date.toISOString();
+};
+
+const fetchGeoData = async (url, errorMsg) => {
+  try {
+    const res = await fetch(url, { mode: "cors", credentials: "omit" });
+    if (!res.ok) throw new Error(errorMsg);
+    const data = await res.json();
+    console.log(`API ${url} response:`, data);
+    return data.time && Array.isArray(data.time) ? data.time : data;
+  } catch {
+    toast.error(errorMsg);
+    return { type: "FeatureCollection", features: [] };
+  }
+};
+
+// MapLegend Component
 const MapLegend = ({
   showBuildings,
   showFloodAreaAll,
   showFloodGate,
   showStreet,
-}) => {
-  return (
-    <Box
-      sx={{
-        position: "absolute",
-        top: 80,
-        left: 70,
-        backgroundColor: "rgba(255, 255, 255, 0.9)",
-        padding: 2,
-        borderRadius: 2,
-        boxShadow: 3,
-        zIndex: 1,
-      }}
-    >
-      <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
-        Legenda
-      </Typography>
-      {showFloodAreaAll && (
-        <Box sx={{ display: "flex", alignItems: "center", mb: 1 }}>
-          <Box
-            sx={{
-              width: 20,
-              height: 20,
-              backgroundColor: "lightblue",
-              mr: 1,
-            }}
-          />
-          <Typography variant="body2">Genangan</Typography>
-        </Box>
-      )}
-      {showBuildings && (
-        <Box sx={{ display: "flex", flexDirection: "column", mb: 1 }}>
-          <Typography variant="body2" fontWeight="bold">
-            Bangunan (Height)
-          </Typography>
-          <Box sx={{ display: "flex", alignItems: "center", ml: 1 }}>
+}) => (
+  <Box
+    sx={{
+      position: "absolute",
+      top: 80,
+      left: 70,
+      bgcolor: "rgba(255, 255, 255, 0.9)",
+      p: 2,
+      borderRadius: 2,
+      boxShadow: 3,
+      zIndex: 1,
+    }}
+  >
+    <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
+      Legenda
+    </Typography>
+    {CONFIG.LEGEND.map(({ key, label, color, shape, subItems }) => {
+      const isVisible = {
+        showBuildings,
+        showFloodAreaAll,
+        showFloodGate,
+        showStreet,
+      }[key];
+      return subItems
+        ? isVisible && (
             <Box
-              sx={{
-                width: 20,
-                height: 20,
-                backgroundColor: "saddlebrown",
-                mr: 1,
-              }}
-            />
-            <Typography variant="body2">0m</Typography>
-          </Box>
-          <Box sx={{ display: "flex", alignItems: "center", ml: 1 }}>
+              key={label}
+              sx={{ display: "flex", flexDirection: "column", mb: 1 }}
+            >
+              <Typography variant="body2" fontWeight="bold">
+                {label}
+              </Typography>
+              {subItems.map(({ height, color }) => (
+                <Box
+                  key={height}
+                  sx={{ display: "flex", alignItems: "center", ml: 1 }}
+                >
+                  <Box sx={{ width: 20, height: 20, bgcolor: color, mr: 1 }} />
+                  <Typography variant="body2">{height}</Typography>
+                </Box>
+              ))}
+            </Box>
+          )
+        : isVisible && (
             <Box
-              sx={{
-                width: 20,
-                height: 20,
-                backgroundColor: "peru",
-                mr: 1,
-              }}
-            />
-            <Typography variant="body2">15m</Typography>
-          </Box>
-          <Box sx={{ display: "flex", alignItems: "center", ml: 1 }}>
-            <Box
-              sx={{
-                width: 20,
-                height: 20,
-                backgroundColor: "burlywood",
-                mr: 1,
-              }}
-            />
-            <Typography variant="body2">35m</Typography>
-          </Box>
-        </Box>
-      )}
-      {showFloodGate && (
-        <Box sx={{ display: "flex", alignItems: "center", mb: 1 }}>
-          <Box
-            sx={{
-              width: 20,
-              height: 20,
-              backgroundColor: "blue",
-              border: "1px solid white",
-              borderRadius: "50%",
-              mr: 1,
-            }}
-          />
-          <Typography variant="body2">Pintu Air</Typography>
-        </Box>
-      )}
-      {showStreet && (
-        <Box sx={{ display: "flex", alignItems: "center", mb: 1 }}>
-          <Box
-            sx={{
-              width: 20,
-              height: 2,
-              backgroundColor: "#FF6200",
-              border: "1px solid white",
-              mr: 1,
-            }}
-          />
-          <Typography variant="body2">Jalan</Typography>
-        </Box>
-      )}
-    </Box>
-  );
-};
+              key={label}
+              sx={{ display: "flex", alignItems: "center", mb: 1 }}
+            >
+              <Box
+                sx={{
+                  width: shape === "line" ? 20 : 20,
+                  height: shape === "line" ? 2 : 20,
+                  bgcolor: color,
+                  border: shape === "circle" ? "1px solid white" : undefined,
+                  borderRadius: shape === "circle" ? "50%" : undefined,
+                  mr: 1,
+                }}
+              />
+              <Typography variant="body2">{label}</Typography>
+            </Box>
+          );
+    })}
+  </Box>
+);
 
+// Main MapComponent
 const MapComponent = ({
   showBuildings,
   showFloodGate,
   showFloodAreaAll,
   showStreet,
   onLayerChange,
-  basemap,
+  basemap = "google",
   selectedTime,
   onTimesUpdate,
   onTimeChange,
@@ -170,504 +253,221 @@ const MapComponent = ({
   const mapRef = useRef(null);
   const [map, setMap] = useState(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [genanganData, setGenanganData] = useState(null);
-  const [bangunanData, setBangunanData] = useState(null);
-  const [jalanData, setJalanData] = useState(null);
-  const [pintuairData, setPintuairData] = useState(null);
-  const [availableTimes, setAvailableTimes] = useState([]);
-  const [initialDataFetched, setInitialDataFetched] = useState(false);
+  const [geoData, setGeoData] = useState({
+    genangan: null,
+    bangunan: null,
+    jalan: null,
+    pintuair: null,
+  });
+  const [times, setTimes] = useState([]);
 
-  const initialView = {
-    center: [106.862, -6.2222],
-    zoom: 15,
-    pitch: 45,
-    bearing: -17.6,
-  };
-
-  const basemaps = {
-    google: {
-      version: 8,
-      sources: {
-        osm: {
-          type: "raster",
-          tiles: ["https://mt0.google.com/vt/lyrs=s&x={x}&y={y}&z={z}"],
-          tileSize: 256,
-          attribution: "© Google Maps",
-          maxzoom: 19,
-        },
-      },
-      layers: [
-        {
-          id: "osm",
-          type: "raster",
-          source: "osm",
-        },
-      ],
-    },
-    osm: {
-      version: 8,
-      sources: {
-        osm: {
-          type: "raster",
-          tiles: ["https://{a-c}.tile.openstreetmap.org/{z}/{x}/{y}.png"],
-          tileSize: 256,
-          attribution:
-            '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-          maxzoom: 19,
-        },
-      },
-      layers: [
-        {
-          id: "osm",
-          type: "raster",
-          source: "osm",
-        },
-      ],
-    },
-  };
-
-  const timeToMinutes = (timeStr) => {
-    try {
-      const [hours, minutes] = timeStr.split(":").map(Number);
-      return hours * 60 + minutes;
-    } catch (error) {
-      console.error("Error parsing time string:", timeStr, error);
-      return null;
-    }
-  };
-
-  const eventTimeToTimeString = (eventTime) => {
-    try {
-      if (!eventTime) {
-        console.warn("EVENT_TIME is null or undefined");
-        return null;
-      }
-      if (eventTime.includes("T")) {
-        return eventTime.split("T")[1].substring(0, 5);
-      }
-      console.warn("Unrecognized EVENT_TIME format:", eventTime);
-      return null;
-    } catch (error) {
-      console.error("Error parsing EVENT_TIME:", eventTime, error);
-      return null;
-    }
-  };
-
-  const formatTimeForCQL = (timeStr) => {
-    if (!timeStr) return null;
-    const date = new Date("2025-05-27"); // Sesuaikan dengan tanggal saat ini
-    const [hours, minutes] = timeStr.split(":").map(Number);
-    date.setUTCHours(hours, minutes, 0, 0);
-    return date.toISOString();
-  };
-
-  // Fetch initial data only once on mount
-  useEffect(() => {
-    let isMounted = true;
-
-    const fetchInitialData = async () => {
-      try {
-        const wfsBaseUrl = "https://gis-dev.dcktrp.id/gispublik/publik/ows";
-        const params = {
-          service: "WFS",
-          version: "1.0.0",
-          request: "GetFeature",
-          typeName: "publik:tr_banjir_simulasi",
-          outputFormat: "application/json",
-          srsName: "EPSG:4326",
-          maxFeatures: "5000",
-        };
-        const genanganUrl = `${wfsBaseUrl}?${new URLSearchParams(params)}`;
-        console.log("Fetching initial genangan data from:", genanganUrl);
-        const genanganResponse = await fetch(genanganUrl, {
-          mode: "cors",
-          credentials: "omit",
-        });
-        if (!genanganResponse.ok) {
-          throw new Error(
-            `Failed to fetch initial flood area data: ${genanganResponse.status} ${genanganResponse.statusText}`
-          );
-        }
-        const genanganData = await genanganResponse.json();
-        console.log("Fetched initial genanganData:", genanganData);
-        if (isMounted) {
-          setGenanganData(genanganData);
-          setInitialDataFetched(true);
-        }
-
-        // Fetch other layers without filtering by time
-        const commonParams = {
-          service: "WFS",
-          version: "1.0.0",
-          request: "GetFeature",
-          outputFormat: "application/json",
-          srsName: "EPSG:4326",
-          maxFeatures: "5000",
-        };
-
-        if (showBuildings) {
-          const bangunanParams = {
-            ...commonParams,
-            typeName: "publik:tr_banjir_bangunan",
-          };
-          const bangunanUrl = `${wfsBaseUrl}?${new URLSearchParams(
-            bangunanParams
-          )}`;
-          console.log("Fetching initial bangunan data from:", bangunanUrl);
-          const bangunanResponse = await fetch(bangunanUrl, {
-            mode: "cors",
-            credentials: "omit",
-          });
-          if (!bangunanResponse.ok) {
-            throw new Error(
-              `Failed to fetch initial buildings data: ${bangunanResponse.status} ${bangunanResponse.statusText}`
-            );
-          }
-          const bangunanData = await bangunanResponse.json();
-          if (isMounted) setBangunanData(bangunanData);
-        }
-
-        if (showStreet) {
-          const jalanParams = {
-            ...commonParams,
-            typeName: "publik:tr_banjir_jalan",
-          };
-          const jalanUrl = `${wfsBaseUrl}?${new URLSearchParams(jalanParams)}`;
-          console.log("Fetching initial jalan data from:", jalanUrl);
-          const jalanResponse = await fetch(jalanUrl, {
-            mode: "cors",
-            credentials: "omit",
-          });
-          if (!jalanResponse.ok) {
-            throw new Error(
-              `Failed to fetch initial street data: ${jalanResponse.status} ${jalanResponse.statusText}`
-            );
-          }
-          const jalanData = await jalanResponse.json();
-          if (isMounted) setJalanData(jalanData);
-        }
-
-        if (showFloodGate) {
-          const pintuairUrl =
-            "https://dcktrp.jakarta.go.id/apigis/data/studio/ee95d7aa422f4b1aa8a443ebba8083ab";
-          console.log("Fetching initial pintuair data from:", pintuairUrl);
-          const pintuairResponse = await fetch(pintuairUrl, {
-            mode: "cors",
-            credentials: "omit",
-          });
-          if (!pintuairResponse.ok) {
-            throw new Error(
-              `Failed to fetch initial flood gate data: ${pintuairResponse.status} ${pintuairResponse.statusText}`
-            );
-          }
-          const pintuairData = await pintuairResponse.json();
-          if (isMounted) setPintuairData(pintuairData);
-        }
-      } catch (error) {
-        console.error("Error fetching initial data:", error);
-        toast.error(
-          "Failed to load initial data. Check WFS service or network."
-        );
-        if (isMounted) {
-          setGenanganData({ type: "FeatureCollection", features: [] });
-          setBangunanData({ type: "FeatureCollection", features: [] });
-          setJalanData({ type: "FeatureCollection", features: [] });
-          setPintuairData({ type: "FeatureCollection", features: [] });
-          setInitialDataFetched(true);
-        }
-      }
-    };
-
-    fetchInitialData();
-    return () => {
-      isMounted = false;
-    };
-  }, [showBuildings, showFloodGate, showFloodAreaAll, showStreet]);
-
-  // Extract unique times and set default to the latest EVENT_TIME
-  useEffect(() => {
-    if (!genanganData || !genanganData.features || !initialDataFetched) {
-      console.log(
-        "genanganData is null, has no features, or initial fetch not complete:",
-        genanganData
-      );
-      setAvailableTimes([]);
-      return;
-    }
-    console.log(
-      "Sample feature properties:",
-      genanganData.features.slice(0, 5).map((f) => f.properties)
-    );
-    const uniqueTimes = [
-      ...new Set(
-        genanganData.features
-          .map((feature) =>
-            eventTimeToTimeString(feature.properties?.EVENT_TIME)
-          )
-          .filter((time) => time)
-      ),
-    ].sort((a, b) => timeToMinutes(a) - timeToMinutes(b));
-    console.log("Extracted unique times:", uniqueTimes);
-    setAvailableTimes(uniqueTimes);
-    if (uniqueTimes.length > 0 && onTimesUpdate) {
-      onTimesUpdate(uniqueTimes);
-      const latestTime = uniqueTimes[uniqueTimes.length - 1]; // Use the latest time
-      console.log(
-        `Setting default time to latest ${latestTime} based on initial data.`
-      );
-      if (
-        onTimeChange &&
-        (!selectedTime || !uniqueTimes.includes(selectedTime))
-      ) {
-        onTimeChange(latestTime); // Set default to latest time if not already set
-      }
-    } else {
-      console.warn("No valid unique times extracted from data");
-      if (onTimeChange) onTimeChange(null);
-      toast.warn("No valid time data available for flood areas.");
-    }
-  }, [
-    genanganData,
-    onTimesUpdate,
-    onTimeChange,
-    initialDataFetched,
-    selectedTime,
-  ]);
-
-  // Update layers only when map style is loaded
-  const updateLayers = (mapInstance) => {
-    if (!mapInstance || !mapInstance.isStyleLoaded()) return;
-
-    let filteredGenanganData = { type: "FeatureCollection", features: [] };
-    if (genanganData && genanganData.features) {
-      const cqlTime = selectedTime ? formatTimeForCQL(selectedTime) : null;
-      filteredGenanganData.features = genanganData.features
-        .filter((feature) => {
-          const featureTime = eventTimeToTimeString(
-            feature.properties?.EVENT_TIME
-          );
-          return (
-            !cqlTime ||
-            (featureTime && formatTimeForCQL(featureTime) === cqlTime)
-          );
-        })
-        .map((feature) => ({
-          ...feature,
-          geometry: cleanGeometry(feature.geometry),
-        }))
-        .filter((feature) => feature.geometry);
-    }
-
-    let bangunanGeoJson = { type: "FeatureCollection", features: [] };
-    if (bangunanData && bangunanData.features) {
-      bangunanGeoJson.features = bangunanData.features
-        .map((feature) => ({
-          ...feature,
-          geometry: cleanGeometry(feature.geometry),
-        }))
-        .filter((feature) => feature.geometry);
-    }
-
-    let jalanGeoJson = { type: "FeatureCollection", features: [] };
-    if (jalanData && jalanData.features) {
-      jalanGeoJson.features = jalanData.features
-        .map((feature) => ({
-          ...feature,
-          geometry: cleanGeometry(feature.geometry),
-        }))
-        .filter((feature) => feature.geometry);
-    }
-
-    let pintuairGeoJson = { type: "FeatureCollection", features: [] };
-    if (pintuairData && pintuairData.features) {
-      pintuairGeoJson.features = pintuairData.features;
-    }
-
-    const removeLayer = (layerId, sourceId) => {
-      if (mapInstance.getLayer(layerId)) mapInstance.removeLayer(layerId);
-      if (mapInstance.getSource(sourceId)) mapInstance.removeSource(sourceId);
-    };
-
-    removeLayer("bangunan-layer", "bangunan");
-    removeLayer("pintu_air-layer", "pintu_air");
-    removeLayer("genangan_all_layer", "genangan");
-    removeLayer("jalan-layer", "jalan");
-
-    if (showFloodAreaAll && filteredGenanganData.features.length > 0) {
-      if (mapInstance.getSource("genangan"))
-        mapInstance.getSource("genangan").setData(filteredGenanganData);
-      else
-        mapInstance.addSource("genangan", {
-          type: "geojson",
-          data: filteredGenanganData,
-        });
-      if (!mapInstance.getLayer("genangan_all_layer")) {
-        mapInstance.addLayer({
-          id: "genangan_all_layer",
-          type: "fill",
-          source: "genangan",
-          paint: { "fill-color": "lightblue", "fill-opacity": 0.4 },
-          beforeId: "bangunan-layer",
-        });
-      }
-    }
-
-    if (showBuildings && bangunanGeoJson.features.length > 0) {
-      if (mapInstance.getSource("bangunan"))
-        mapInstance.getSource("bangunan").setData(bangunanGeoJson);
-      else
-        mapInstance.addSource("bangunan", {
-          type: "geojson",
-          data: bangunanGeoJson,
-        });
-      if (!mapInstance.getLayer("bangunan-layer")) {
-        mapInstance.addLayer({
-          id: "bangunan-layer",
-          type: "fill",
-          source: "bangunan",
-          paint: { "fill-color": "brown" },
-        });
-      }
-    }
-
-    if (showFloodGate && pintuairGeoJson.features.length > 0) {
-      if (mapInstance.getSource("pintu_air"))
-        mapInstance.getSource("pintu_air").setData(pintuairGeoJson);
-      else
-        mapInstance.addSource("pintu_air", {
-          type: "geojson",
-          data: pintuairGeoJson,
-        });
-      if (!mapInstance.getLayer("pintu_air-layer")) {
-        mapInstance.addLayer({
-          id: "pintu_air-layer",
-          type: "circle",
-          source: "pintu_air",
-          paint: {
-            "circle-radius": 6,
-            "circle-color": "blue",
-            "circle-stroke-width": 1,
-            "circle-stroke-color": "#ffffff",
-          },
-        });
-      }
-    }
-
-    if (showStreet && jalanGeoJson.features.length > 0) {
-      if (mapInstance.getSource("jalan"))
-        mapInstance.getSource("jalan").setData(jalanGeoJson);
-      else
-        mapInstance.addSource("jalan", { type: "geojson", data: jalanGeoJson });
-      if (!mapInstance.getLayer("jalan-layer")) {
-        mapInstance.addLayer({
-          id: "jalan-layer",
-          type: "line",
-          source: "jalan",
-          paint: {
-            "line-color": "#FF6200",
-            "line-width": ["interpolate", ["linear"], ["zoom"], 12, 1, 16, 3],
-            "line-opacity": 0.8,
-          },
-          beforeId: "bangunan-layer",
-        });
-      }
-    }
-
-    if (onLayerChange) {
-      onLayerChange({
-        buildingLayer: showBuildings ? "bangunan-layer" : null,
-        pintuAirLayer: showFloodGate ? "pintu_air-layer" : null,
-        genanganAllLayer: showFloodAreaAll ? "genangan_all_layer" : null,
-        jalanLayer: showStreet ? "jalan-layer" : null,
-      });
-    }
-  };
-
+  // Initialize map and fetch data
   useEffect(() => {
     const mapInstance = new Map({
       container: mapRef.current,
-      center: initialView.center,
-      zoom: initialView.zoom,
-      pitch: initialView.pitch,
-      bearing: initialView.bearing,
+      ...CONFIG.INITIAL_VIEW,
+      style: {
+        version: 8,
+        sources: {
+          osm: {
+            type: "raster",
+            ...CONFIG.BASEMAPS[basemap],
+            tileSize: 256,
+            maxzoom: 19,
+          },
+        },
+        layers: [{ id: "osm", type: "raster", source: "osm" }],
+      },
       zoomControl: false,
-      style: basemaps.google,
     });
     setMap(mapInstance);
 
-    mapInstance.on("style.load", () => {
-      console.log("Map style loaded successfully");
-      updateLayers(mapInstance);
-    });
+    const fetchData = async () => {
+      const timeData = await fetchGeoData(
+        CONFIG.TIME_API_URL,
+        "Failed to load time data"
+      );
+      let fetches = [
+        ...(showBuildings
+          ? [
+              {
+                key: "bangunan",
+                url: `${CONFIG.WFS_URL}?${new URLSearchParams({
+                  ...CONFIG.WFS_PARAMS,
+                  typeName: "publik:tr_banjir_bangunan",
+                })}`,
+                errorMsg: "Failed to load buildings data",
+              },
+            ]
+          : []),
+        ...(showStreet
+          ? [
+              {
+                key: "jalan",
+                url: `${CONFIG.WFS_URL}?${new URLSearchParams({
+                  ...CONFIG.WFS_PARAMS,
+                  typeName: "publik:tr_banjir_jalan",
+                })}`,
+                errorMsg: "Failed to load street data",
+              },
+            ]
+          : []),
+        ...(showFloodGate
+          ? [
+              {
+                key: "pintuair",
+                url: CONFIG.PINTUAIR_URL,
+                errorMsg: "Failed to load flood gate data",
+              },
+            ]
+          : []),
+      ];
 
-    return () => {
-      if (mapInstance) {
-        mapInstance.off("style.load", updateLayers);
-        mapInstance.remove();
+      // Add genangan fetch with CQL filter if showFloodAreaAll is true
+      if (showFloodAreaAll) {
+        const cqlFilter = selectedTime
+          ? `EVENT_TIME = '${formatCQLTime(selectedTime)}'`
+          : "";
+        const genanganParams = {
+          ...CONFIG.WFS_PARAMS,
+          typeName: "publik:tr_banjir_simulasi",
+          ...(cqlFilter ? { CQL_FILTER: cqlFilter } : {}),
+        };
+        fetches.push({
+          key: "genangan",
+          url: `${CONFIG.WFS_URL}?${new URLSearchParams(genanganParams)}`,
+          errorMsg: "Failed to load flood area data",
+        });
+      }
+
+      const results = await Promise.all(
+        fetches.map(({ key, url, errorMsg }) =>
+          fetchGeoData(url, errorMsg).then((data) => ({ key, data }))
+        )
+      );
+      setGeoData(
+        results.reduce((acc, { key, data }) => ({ ...acc, [key]: data }), {
+          genangan: { type: "FeatureCollection", features: [] },
+          bangunan: { type: "FeatureCollection", features: [] },
+          jalan: { type: "FeatureCollection", features: [] },
+          pintuair: { type: "FeatureCollection", features: [] },
+        })
+      );
+
+      if (Array.isArray(timeData)) {
+        const sortedTimes = timeData.sort(
+          (a, b) => timeToMinutes(a) - timeToMinutes(b)
+        );
+        setTimes(sortedTimes);
+        if (sortedTimes.length && onTimesUpdate) {
+          onTimesUpdate(sortedTimes);
+          if (!selectedTime || !sortedTimes.includes(selectedTime))
+            onTimeChange?.(sortedTimes[sortedTimes.length - 1]);
+        }
+      } else {
+        toast.warn("No valid time data available.");
       }
     };
-  }, []);
 
-  useEffect(() => {
-    if (!map || !basemap) return;
-    const currentCenter = map.getCenter();
-    const currentZoom = map.getZoom();
-    const currentPitch = map.getPitch();
-    const currentBearing = map.getBearing();
-    map.setStyle(basemaps[basemap]);
-    map.on("style.load", () => {
-      map.setCenter(currentCenter);
-      map.setZoom(currentZoom);
-      map.setPitch(currentPitch);
-      map.setBearing(currentBearing);
-      updateLayers(map);
+    fetchData();
+    mapInstance.on("style.load", () => {
+      if (geoData.genangan?.features) updateLayers(mapInstance);
     });
-  }, [map, basemap]);
-
-  useEffect(() => {
-    if (!map || !map.isStyleLoaded()) return;
-    updateLayers(map);
+    return () => {
+      mapInstance.off("style.load");
+      mapInstance.remove();
+    };
   }, [
-    map,
     showBuildings,
     showFloodGate,
     showFloodAreaAll,
     showStreet,
-    onLayerChange,
+    basemap,
     selectedTime,
-    genanganData,
-    bangunanData,
-    jalanData,
-    pintuairData,
   ]);
 
-  const handleZoomIn = () => map?.zoomIn({ duration: 500 });
-  const handleZoomOut = () => map?.zoomOut({ duration: 500 });
-  const handleResetView = () => map?.flyTo({ ...initialView, duration: 1000 });
-  const handleFullscreenToggle = () => {
-    if (!map) return;
+  // Update layers
+  const updateLayers = (mapInstance) => {
+    if (!mapInstance?.isStyleLoaded()) return;
+
+    const layerData = {
+      genangan: { data: geoData.genangan, show: showFloodAreaAll },
+      bangunan: { data: geoData.bangunan, show: showBuildings },
+      jalan: { data: geoData.jalan, show: showStreet },
+      pintuair: { data: geoData.pintuair, show: showFloodGate },
+    };
+
+    Object.entries(layerData).forEach(([key, { data, show }]) => {
+      const layerConfig = CONFIG.LAYERS[key];
+      if (!layerConfig) {
+        console.warn(`Layer configuration for ${key} not found`);
+        return;
+      }
+      const { id, source, type, paint, beforeId } = layerConfig;
+      if (mapInstance.getLayer(id)) mapInstance.removeLayer(id);
+      if (mapInstance.getSource(source)) mapInstance.removeSource(source);
+      if (show && data?.features?.length) {
+        const geoJson = {
+          type: "FeatureCollection",
+          features: data.features
+            .map((f) => ({ ...f, geometry: cleanGeometry(f.geometry) }))
+            .filter((f) => f.geometry),
+        };
+        mapInstance.addSource(source, { type: "geojson", data: geoJson });
+        mapInstance.addLayer({
+          id,
+          source,
+          type,
+          paint,
+          ...(beforeId ? { beforeId } : {}),
+        });
+      }
+    });
+
+    onLayerChange?.({
+      buildingLayer: showBuildings ? CONFIG.LAYERS.bangunan.id : null,
+      pintuAirLayer: showFloodGate ? CONFIG.LAYERS.pintu_air.id : null,
+      genanganAllLayer: showFloodAreaAll ? CONFIG.LAYERS.genangan.id : null,
+      jalanLayer: showStreet ? CONFIG.LAYERS.jalan.id : null,
+    });
+  };
+
+  useEffect(() => {
+    if (!geoData.genangan?.features || !times.length) return;
+    if (map?.isStyleLoaded()) updateLayers(map);
+  }, [
+    map,
+    geoData,
+    showBuildings,
+    showFloodGate,
+    showFloodAreaAll,
+    showStreet,
+  ]);
+
+  // Map controls
+  const handleZoom = (dir) =>
+    map?.[dir === "in" ? "zoomIn" : "zoomOut"]({ duration: 500 });
+  const handleResetView = () =>
+    map?.flyTo({ ...CONFIG.INITIAL_VIEW, duration: 1000 });
+  const handleFullscreen = () => {
     const elem = mapRef.current;
     if (!isFullscreen) {
-      if (elem.requestFullscreen) elem.requestFullscreen();
-      else if (elem.webkitRequestFullscreen) elem.webkitRequestFullscreen();
-      else if (elem.msRequestFullscreen) elem.msRequestFullscreen();
+      elem.requestFullscreen?.() ||
+        elem.webkitRequestFullscreen?.() ||
+        elem.msRequestFullscreen?.();
       setIsFullscreen(true);
     } else {
-      if (document.exitFullscreen) document.exitFullscreen();
-      else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
-      else if (document.msExitFullscreen) document.msExitFullscreen();
+      document.exitFullscreen?.() ||
+        document.webkitExitFullscreen?.() ||
+        document.msExitFullscreen?.();
       setIsFullscreen(false);
     }
   };
 
   useEffect(() => {
-    document.addEventListener("fullscreenchange", () =>
-      setIsFullscreen(!!document.fullscreenElement)
-    );
-    return () =>
-      document.removeEventListener("fullscreenchange", () =>
-        setIsFullscreen(!!document.fullscreenElement)
-      );
+    const handler = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener("fullscreenchange", handler);
+    return () => document.removeEventListener("fullscreenchange", handler);
   }, []);
 
   return (
@@ -681,28 +481,35 @@ const MapComponent = ({
           display: "flex",
           flexDirection: "column",
           gap: 1,
-          backgroundColor: "rgba(255, 255, 255, 0.9)",
-          padding: 1,
+          bgcolor: "rgba(255, 255, 255, 0.9)",
+          p: 1,
           borderRadius: 1,
           boxShadow: 2,
           zIndex: 1,
         }}
       >
-        <IconButton onClick={handleZoomIn} aria-label="Zoom in">
-          <ZoomInIcon />
-        </IconButton>
-        <IconButton onClick={handleZoomOut} aria-label="Zoom out">
-          <ZoomOutIcon />
-        </IconButton>
-        <IconButton onClick={handleResetView} aria-label="Reset view">
-          <HomeIcon />
-        </IconButton>
-        <IconButton
-          onClick={handleFullscreenToggle}
-          aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
-        >
-          {isFullscreen ? <FullscreenExitIcon /> : <FullscreenIcon />}
-        </IconButton>
+        {[
+          {
+            icon: <ZoomInIcon />,
+            onClick: () => handleZoom("in"),
+            label: "Zoom in",
+          },
+          {
+            icon: <ZoomOutIcon />,
+            onClick: () => handleZoom("out"),
+            label: "Zoom out",
+          },
+          { icon: <HomeIcon />, onClick: handleResetView, label: "Reset view" },
+          {
+            icon: isFullscreen ? <FullscreenExitIcon /> : <FullscreenIcon />,
+            onClick: handleFullscreen,
+            label: isFullscreen ? "Exit fullscreen" : "Enter fullscreen",
+          },
+        ].map(({ icon, onClick, label }, i) => (
+          <IconButton key={i} onClick={onClick} aria-label={label}>
+            {icon}
+          </IconButton>
+        ))}
       </Box>
       <MapLegend
         showBuildings={showBuildings}
